@@ -1,6 +1,7 @@
 node_modules/
 .DS_Store
 *.log
-# old monolithic file (optional, but good to keep clean)
-prompt-forge2.html
+
+# 退避させた旧ファイル（バックアップ）
+prompt-forge2-old.html
 prompt-builder.html

@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+*.log
+# old monolithic file (optional, but good to keep clean)
+prompt-forge2.html
+prompt-builder.html

@@ -1,0 +1,16 @@
+{
+  "name": "GANFPU",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:18",
+  "customizations": {
+    "vscode": {
+      "settings": {},
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  },
+  "forwardPorts": [8080],
+  "postCreateCommand": "npm install -g http-server",
+  "postStartCommand": "http-server . -p 8080 -c-1"
+}

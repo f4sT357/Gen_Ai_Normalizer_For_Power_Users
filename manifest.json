@@ -1,6 +1,6 @@
 {
-  "name": "Prompt Forge 2",
-  "short_name": "PromptForge",
+  "name": "Generative AI Normalizer For Power User",
+  "short_name": "GANFPU",
   "description": "A local-first, multi-language engine for standardizing AI prompt engineering.",
   "start_url": ".",
   "display": "standalone",

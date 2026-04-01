@@ -1,4 +1,4 @@
-# Prompt Forge 2
+# Generative AI Normalizer For Power User (GANFPU)
 
 **A local-first, multi-language engine for standardizing AI prompt engineering. Built for power users.**
 
@@ -9,7 +9,7 @@
 ---
 
 ## 🚀 About
-Prompt Forge 2 is a lightweight, local-only developer tool designed to **standardize prompt engineering workflows**. By separating logic, data, and presentation, it provides a consistent framework for creating high-quality, high-reliability AI prompts.
+GANFPU is a lightweight, local-only developer tool designed to **standardize prompt engineering workflows**. By separating logic, data, and presentation, it provides a consistent framework for creating high-quality, high-reliability AI prompts.
 
 ---
 
@@ -42,8 +42,8 @@ Since the application uses `fetch` to load local Markdown/JSON configuration, a 
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/f4sT357/promptforge2.git
-   cd promptforge2
+   git clone https://github.com/f4sT357/ganfpu.git
+   cd ganfpu
    ```
 
 2. **Run a local server:**
@@ -61,7 +61,7 @@ Since the application uses `fetch` to load local Markdown/JSON configuration, a 
 ---
 
 ## 🇯🇵 日本語概要
-Prompt Forge 2 は、プロンプト作成を標準化し、品質のバラつきを抑えるためのローカル完結型ソフトウェアです。
+GANFPU は、プロンプト作成を標準化し、品質のバラつきを抑えるためのローカル完結型ソフトウェアです。
 パワーユーザー向けに設計されており、Markdown/YAML形式のテンプレート管理や多言語UI（6言語対応）を特徴としています。
 プロンプトの構成要素（役割、タスク、制約、出力形式など）を体系的に定義することで、誰でも高い品質の回答をAIから引き出すことが可能になります。
 

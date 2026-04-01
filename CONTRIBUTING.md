@@ -1,4 +1,4 @@
-# Contributing to Prompt Forge 2
+# Contributing to GANFPU
 
 We love contributions! This project is designed to be highly extensible. You can contribute by adding new prompt templates, improving UI translations, or refining the core logic.
 
@@ -8,7 +8,7 @@ We love contributions! This project is designed to be highly extensible. You can
 - `data/templates/*.md`: Markdown files for prompt templates.
 - `data/templates.json`: Registry of available template filenames.
 - `data/i18n.json`: UI translations and multi-language support.
-- `index.html` & `prompt-forge2.html`: Main application entry points.
+- `index.html` & `ganfpu.html`: Main application entry points.
 - `app.js`: Core logic and data loading.
 - `style.css`: Cyberpunk-inspired design system.
 

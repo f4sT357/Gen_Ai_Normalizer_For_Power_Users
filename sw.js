@@ -1,8 +1,8 @@
-const CACHE_NAME = 'promptforge2-v2';
+const CACHE_NAME = 'ganfpu-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './prompt-forge2.html',
+  './ganfpu.html',
   './style.css',
   './app.js',
   './manifest.json',

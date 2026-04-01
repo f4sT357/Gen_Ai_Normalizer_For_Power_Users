@@ -37,13 +37,8 @@ async function initApp() {
         const i18nRes = await fetch('data/i18n.json');
         I18N = await i18nRes.json();
 
-        // Load templates
-        const storedTemplates = localStorage.getItem('pb_templates');
-        if (storedTemplates) {
-            templates = JSON.parse(storedTemplates);
-        } else {
-            await loadDefaultTemplates();
-        }
+        // Load templates dynamically for the current language
+        await loadDefaultTemplates();
 
         // UI Initialization
         rebuildSelects();
@@ -66,7 +61,7 @@ async function loadDefaultTemplates() {
         
         const loadedTemplates = [];
         for (const fileName of fileNames) {
-            const res = await fetch(`data/templates/${fileName}`);
+            const res = await fetch(`data/templates/${lang}/${fileName}`);
             const text = await res.text();
             
             // Parse Frontmatter
@@ -86,9 +81,16 @@ async function loadDefaultTemplates() {
                     data: data
                 });
             }
+        } // closing bracket for the fileNames loop
+
+        // Add user-saved templates from localStorage
+        const storedTemplates = localStorage.getItem('pb_templates');
+        if (storedTemplates) {
+            const parsed = JSON.parse(storedTemplates);
+            loadedTemplates.push(...parsed.filter(t => !t.id)); // only user custom templates (no id)
         }
+
         templates = loadedTemplates;
-        persist();
     } catch (err) {
         console.error('Default templates load failed:', err);
     }
@@ -96,20 +98,16 @@ async function loadDefaultTemplates() {
 
 function parseMarkdownToData(markdown) {
     const data = {};
-    const sections = markdown.split(/\n# /);
-    
-    // Mapping of Japanese headers to field IDs
-    const headerMap = {
-        '役割': 'f-role',
-        'タスク': 'f-task',
-        '背景': 'f-context',
-        '制約条件': 'f-constraint',
-        '出力形式': 'f-format',
-        'トーン・文体': 'f-tone',
-        '出力の長さ': 'f-length',
-        '回答アプローチ': 'f-reasoning',
-        '言語': 'f-lang'
-    };
+    // Dynamically build headerMap from the current language's I18N prefixes
+    const headerMap = {};
+    const fields = ['role', 'task', 'context', 'constraint', 'format', 'tone', 'length', 'reasoning', 'lang'];
+    fields.forEach(f => {
+        const prefixStr = I18N[lang] && I18N[lang]['prefix-' + f];
+        if (prefixStr) {
+            const h = prefixStr.replace(/^#\s*/, '').replace(/\n$/, '').trim();
+            headerMap[h] = 'f-' + f;
+        }
+    });
 
     sections.forEach(sec => {
         const lines = sec.split('\n');
@@ -136,8 +134,7 @@ function findSelectValue(fieldId, content) {
     // Current hardcoded mapping for defaults
     // In a real app we might want to store the literal value in YAML instead of parsing text
     // For now, let's keep it simple. If we can't find a match, just return empty
-    // (Actual refactoring might change template metadata to be more direct)
-    const options = I18N['ja'][fieldId.replace('f-', '') + '-options'];
+    const options = I18N[lang] && I18N[lang][fieldId.replace('f-', '') + '-options'];
     if (options) {
         const match = options.find(opt => opt.value.includes(content) || content.includes(opt.value));
         return match ? match.value : '';
@@ -163,8 +160,11 @@ function setLang(l) {
     });
     applyUI();
     rebuildSelects();
-    renderTemplates();
-    update();
+    // Reload templates for new lang and then update UI
+    loadDefaultTemplates().then(() => {
+        renderTemplates();
+        update();
+    });
 }
 
 function applyUI() {
@@ -460,10 +460,10 @@ function renderTemplates() {
         const item = document.createElement('div');
         item.className = 'template-item';
 
-        const name = document.createElement('div');
+        const name = document.createElement('span');
         name.className = 'template-name';
         
-        // Translated name fallback
+        // Translated name fallback if available, else use original name
         const translated = tmpl.id ? t('tmpl-' + tmpl.id) : null;
         name.textContent = (translated && translated !== 'tmpl-' + tmpl.id) ? translated : tmpl.name;
 
@@ -515,7 +515,11 @@ function deleteTemplate(i) {
     showToast(`「${name}」${t('toast-deleted')}`);
 }
 
-function persist() { localStorage.setItem('pb_templates', JSON.stringify(templates)); }
+function persist() { 
+    // Filter out default templates (they have an ID) and persist only custom templates
+    const customTemplates = templates.filter(t => !t.id);
+    localStorage.setItem('pb_templates', JSON.stringify(customTemplates)); 
+}
 
 // ============================================================
 // Export / Import

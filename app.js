@@ -189,6 +189,8 @@ function applyUI() {
 
     document.getElementById('btn-reset').textContent = t('btn-reset');
     document.getElementById('copy-text').textContent = t('btn-copy');
+    const downloadTxt = document.getElementById('download-text');
+    if (downloadTxt) downloadTxt.textContent = t('btn-download');
     const shareTxt = document.getElementById('share-text');
     if (shareTxt) shareTxt.textContent = t('btn-share-prompt');
     const shareTmpl = document.getElementById('btn-share-tmpl');
@@ -351,6 +353,27 @@ function fallbackCopy(text, cb) {
     document.body.appendChild(ta); ta.focus(); ta.select();
     try { document.execCommand('copy'); if (cb) cb(); } catch (e) { showToast(t('toast-no-copy')); }
     document.body.removeChild(ta);
+}
+
+// ============================================================
+// Download
+// ============================================================
+function downloadPrompt() {
+    const text = getPromptText();
+    if (!text) { showToast(t('toast-no-copy')); return; }
+    
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const fileName = "prompt_" + dateStr + ".txt";
+    
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 // ============================================================

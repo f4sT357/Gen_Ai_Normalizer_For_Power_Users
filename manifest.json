@@ -2,7 +2,7 @@
   "name": "Prompt Forge 2",
   "short_name": "PromptForge",
   "description": "A local-first, multi-language engine for standardizing AI prompt engineering.",
-  "start_url": "/index.html",
+  "start_url": ".",
   "display": "standalone",
   "background_color": "#0a0a0f",
   "theme_color": "#7c3aed",

@@ -1,27 +1,27 @@
-const CACHE_NAME = 'promptforge2-v1';
+const CACHE_NAME = 'promptforge2-v2';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/prompt-forge2.html',
-  '/style.css',
-  '/app.js',
-  '/manifest.json',
-  '/assets/icons/icon-192.png',
-  '/assets/icons/icon-512.png',
-  '/data/i18n.json',
-  '/data/templates.json',
-  '/data/templates/web-research.md',
-  '/data/templates/business-email.md',
-  '/data/templates/minutes.md',
-  '/data/templates/decision-making.md',
-  '/data/templates/blog-post.md',
-  '/data/templates/rewrite.md',
-  '/data/templates/sns-post.md',
-  '/data/templates/translation.md',
-  '/data/templates/explanation.md',
-  '/data/templates/brainstorming.md',
-  '/data/templates/analysis.md',
-  '/data/templates/faq.md',
+  './',
+  './index.html',
+  './prompt-forge2.html',
+  './style.css',
+  './app.js',
+  './manifest.json',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png',
+  './data/i18n.json',
+  './data/templates.json',
+  './data/templates/web-research.md',
+  './data/templates/business-email.md',
+  './data/templates/minutes.md',
+  './data/templates/decision-making.md',
+  './data/templates/blog-post.md',
+  './data/templates/rewrite.md',
+  './data/templates/sns-post.md',
+  './data/templates/translation.md',
+  './data/templates/explanation.md',
+  './data/templates/brainstorming.md',
+  './data/templates/analysis.md',
+  './data/templates/faq.md',
 ];
 
 // Install: Pre-cache all assets
@@ -67,7 +67,7 @@ self.addEventListener('fetch', event => {
     }).catch(() => {
       // Fallback for navigation requests if offline
       if (event.request.mode === 'navigate') {
-        return caches.match('/index.html');
+        return caches.match('./index.html');
       }
     })
   );

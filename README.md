@@ -38,13 +38,16 @@ Get instant feedback on your prompt's richness. The tool analyzes your inputs to
 - **Markdown & YAML:** Templates are stored as Markdown files with YAML frontmatter—perfect for version control.
 - **For Power Users:** Minimalistic, high-contrast, cyberpunk-inspired UI designed for rapid iteration.
 ---
-Use Cases
+## 💡 Use Cases
 
-Use GitHub as Your Personal Prompt Cloud
+### Use GitHub as Your Personal Prompt Cloud
+
 Create a private repository and store your exported prompt files there. Free, version-controlled, and accessible from any device — no extra setup required.
-	1.	Export your prompts from GANFPU
-	2.	Push them to a private GitHub repository
-	3.	Download and import on any device, anytime​​​​​​​​​​​​​​​​
+
+1. Export your prompts from GANFPU
+2. Push them to a private GitHub repository
+3. Download and import on any device, anytime
+
 ---
 
 ## 📦 How to Run

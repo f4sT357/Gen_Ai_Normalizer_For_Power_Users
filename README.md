@@ -1,5 +1,6 @@
 # Generative AI Normalizer For Power User (GANFPU)
 “Build your prompt once. Use it everywhere.”
+
 **A local-first, multi-language engine for standardizing AI prompt engineering. Built for power users.**
 
 ![Main UI](assets/screenshots/main_ui.png)

@@ -46,7 +46,14 @@ async function initApp() {
         restoreAutosave();
         restoreCollapsed();
         renderTemplates();
-        setLang(lang);
+        
+        // Init lang toggle buttons (without triggering a second template load)
+        document.documentElement.lang = lang;
+        ['ja', 'en', 'zh', 'ko', 'es', 'fr'].forEach(code => {
+            const btn = document.getElementById('btn-' + code);
+            if (btn) btn.classList.toggle('active', lang === code);
+        });
+
         initShareButtons();
         update();
     } catch (err) {
@@ -59,29 +66,36 @@ async function loadDefaultTemplates() {
         const listRes = await fetch('data/templates.json');
         const fileNames = await listRes.json();
         
-        const loadedTemplates = [];
-        for (const fileName of fileNames) {
-            const res = await fetch(`data/templates/${lang}/${fileName}`);
-            const text = await res.text();
-            
-            // Parse Frontmatter
-            const frontmatterMatch = text.match(/^---([\s\S]*?)---/);
-            if (frontmatterMatch) {
-                const yaml = frontmatterMatch[1];
-                const content = text.slice(frontmatterMatch[0].length).trim();
-                const meta = jsyaml.load(yaml);
+        const fetchPromises = fileNames.map(async fileName => {
+            try {
+                const res = await fetch(`data/templates/${lang}/${fileName}`);
+                const text = await res.text();
                 
-                // Map Markdown content to field IDs (heuristic mapping based on headers)
-                const data = parseMarkdownToData(content);
-                
-                loadedTemplates.push({
-                    id: meta.id || null,
-                    name: meta.name,
-                    category: meta.category,
-                    data: data
-                });
+                // Parse Frontmatter
+                const frontmatterMatch = text.match(/^---([\s\S]*?)---/);
+                if (frontmatterMatch) {
+                    const yaml = frontmatterMatch[1];
+                    const content = text.slice(frontmatterMatch[0].length).trim();
+                    const meta = jsyaml.load(yaml);
+                    
+                    // Map Markdown content to field IDs (heuristic mapping based on headers)
+                    const data = parseMarkdownToData(content);
+                    
+                    return {
+                        id: meta.id || null,
+                        name: meta.name,
+                        category: meta.category,
+                        data: data
+                    };
+                }
+            } catch (e) {
+                console.error(`Failed to load template ${fileName}:`, e);
             }
-        } // closing bracket for the fileNames loop
+            return null;
+        });
+
+        const defaultTemplates = (await Promise.all(fetchPromises)).filter(Boolean);
+        const loadedTemplates = [...defaultTemplates];
 
         // Add user-saved templates from localStorage
         const storedTemplates = localStorage.getItem('pb_templates');

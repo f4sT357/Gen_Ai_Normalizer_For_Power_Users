@@ -6,6 +6,8 @@
 
 [日本語の概要は下にあります]
 
+test from here: https://f4st357.github.io/Gen_Ai_Normalizer_For_Power_Users/
+
 ---
 
 ## 🚀 About

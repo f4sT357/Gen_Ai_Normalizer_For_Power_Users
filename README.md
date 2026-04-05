@@ -2,6 +2,7 @@
 “Build your prompt once. Use it everywhere.”
 
 **A local-first, multi-language engine for standardizing AI prompt engineering. Built for power users.**
+<img width="1919" height="1079" alt="スクリーンショット 2026-04-06 061443" src="https://github.com/user-attachments/assets/8979b981-86e7-4a9c-8a5f-d8f9b35361af" />
 
 ![Main UI](assets/screenshots/main_ui.png)
 

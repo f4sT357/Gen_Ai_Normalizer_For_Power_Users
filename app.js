@@ -57,9 +57,116 @@ async function initApp() {
 
         initShareButtons();
         update();
+        // Restore prompt from URL fragment if present (share link auto-restore)
+        restorePromptFromUrl();
     } catch (err) {
         console.error('Initialization failed:', err);
     }
+}
+
+// Restore prompt from URL fragment like #prompt=<encoded prompt>
+function restorePromptFromUrl() {
+    try {
+        const hash = location.hash || '';
+        // Prefer structured data (#data=...), fallback to legacy #prompt=
+        const dataMatch = hash.match(/data=([^&]+)/);
+        if (dataMatch) {
+            let b64url = dataMatch[1];
+            // Convert base64url -> base64 (pad)
+            let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+            const pad = b64.length % 4;
+            if (pad) b64 += '='.repeat(4 - pad);
+            let json = null;
+            if (typeof LZString !== 'undefined' && LZString.decompressFromBase64) {
+                // LZString expects standard base64
+                json = LZString.decompressFromBase64(b64);
+            } else {
+                try { json = decodeURIComponent(escape(atob(b64))); } catch (e) { json = null; }
+            }
+            if (!json) return;
+            const obj = JSON.parse(json);
+            // Populate fields
+            Object.keys(obj).forEach(key => {
+                const val = obj[key];
+                const el = document.getElementById(key);
+                if (el) {
+                    // Handle selects with custom values
+                    if (el.tagName === 'SELECT') {
+                        const hasOption = Array.from(el.options).some(o => o.value === val);
+                        if (hasOption) {
+                            el.value = val;
+                        } else {
+                            // set as custom
+                            el.value = 'custom';
+                            const customId = key + '-custom';
+                            const cust = document.getElementById(customId);
+                            if (cust) cust.value = val;
+                        }
+                    } else {
+                        el.value = val;
+                    }
+                } else {
+                    // handle known custom ids
+                    const alt = document.getElementById(key.replace('-custom',''));
+                    if (!alt) return;
+                }
+            });
+            update();
+            return;
+        }
+
+        const m = hash.match(/prompt=(.*)/);
+        if (!m) return;
+        const decoded = decodeURIComponent(m[1]);
+        const preview = document.getElementById('preview');
+        const charCountEl = document.getElementById('charCount');
+        if (!preview) return;
+        // Put prompt into preview and update char count styling
+        preview.textContent = decoded;
+        const len = decoded.length;
+        if (charCountEl) {
+            charCountEl.textContent = `${len.toLocaleString()} ${t('char-count')}`;
+            charCountEl.className = 'char-count' + (len > 2000 ? ' long' : len > 800 ? ' warn' : '');
+        }
+        // Ensure not in edit mode
+        preview.contentEditable = 'false';
+        const editToggle = document.getElementById('editToggle');
+        if (editToggle) { editToggle.textContent = t('edit-mode-on'); editToggle.classList.remove('active'); }
+    } catch (e) { /* ignore */ }
+}
+
+// Show modal to allow copying plain text (JSON payload) when URL is too long
+function showPlainCopyDialog(text) {
+    // If dialog already exists, update and show
+    let modal = document.getElementById('plainCopyModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'plainCopyModal';
+        modal.className = 'plain-copy-modal';
+        modal.innerHTML = `
+            <div class="plain-copy-backdrop"></div>
+            <div class="plain-copy-card">
+                <div class="plain-copy-title">${t('btn-copy-plain')}</div>
+                <div class="plain-copy-desc">${t('plain-copy-desc')}</div>
+                <textarea id="plainCopyTextarea" class="plain-copy-textarea"></textarea>
+                <div class="plain-copy-actions">
+                    <button id="plainCopyBtn" class="btn btn-primary">${t('btn-copy-plain')}</button>
+                    <button id="plainCopyClose" class="btn btn-secondary">${t('btn-close')}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        document.getElementById('plainCopyClose').onclick = () => modal.remove();
+        document.getElementById('plainCopyBtn').onclick = async () => {
+            const val = document.getElementById('plainCopyTextarea').value;
+            if (navigator.clipboard && window.isSecureContext) {
+                try { await navigator.clipboard.writeText(val); showToast(t('toast-url-too-long-copied')); modal.remove(); return; } catch(e) {}
+            }
+            fallbackCopy(val, () => { showToast(t('toast-url-too-long-copied')); modal.remove(); });
+        };
+    }
+    const ta = document.getElementById('plainCopyTextarea');
+    ta.value = text;
+    ta.select();
 }
 
 async function loadDefaultTemplates() {
@@ -413,12 +520,14 @@ function downloadPrompt() {
 // Web Share
 // ============================================================
 function canShare() { return !!(navigator.share && navigator.canShare); }
+const SHARE_URL_MAX = 2000; // max safe URL length before falling back to plain text copy
 
 function initShareButtons() {
     const shareBtn = document.getElementById('shareBtn');
-    if (shareBtn && canShare()) shareBtn.style.display = 'flex';
+    // Show share buttons unconditionally; runtime will fallback if Web Share isn't available
+    if (shareBtn) shareBtn.style.display = 'flex';
     const shareTmplBtn = document.getElementById('btn-share-tmpl');
-    if (shareTmplBtn && canShare()) shareTmplBtn.style.display = 'flex';
+    if (shareTmplBtn) shareTmplBtn.style.display = 'flex';
 }
 
 async function sharePrompt() {
@@ -426,14 +535,46 @@ async function sharePrompt() {
     if (!text) { showToast(t('toast-no-copy')); return; }
     const shareData = { title: t('share-title-prompt'), text };
     try {
-        if (navigator.canShare && navigator.canShare(shareData)) {
+        // Try native Web Share first (if supported)
+        if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
             await navigator.share(shareData);
             showToast(t('toast-share-ok'));
-        } else {
-            fallbackCopy(text, () => showToast(t('toast-copied')));
+            return;
         }
     } catch (e) {
         if (e.name !== 'AbortError') showToast(t('toast-share-unsupported'));
+    }
+
+    // Fallback: create a compressed shareable URL containing the full form as #data=<base64url>
+    try {
+        // Build payload from fields
+        const payload = {};
+        FIELDS.forEach(f => { payload[f.id] = getFieldValue(f.id); });
+        payload['f-format-custom'] = (document.getElementById('f-format-custom') || { value: '' }).value || '';
+        payload['f-hallucination-custom'] = (document.getElementById('f-hallucination-custom') || { value: '' }).value || '';
+
+        const json = JSON.stringify(payload);
+        // Use LZString to compress to base64, then make it URL-safe
+        const b64 = (typeof LZString !== 'undefined' && LZString.compressToBase64) ? LZString.compressToBase64(json) : btoa(unescape(encodeURIComponent(json)));
+        const b64url = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+        const base = location.href.split('#')[0];
+        const url = base + '#data=' + b64url;
+        // If URL is extremely long, show a plain-text copy modal as fallback
+        if (url.length > SHARE_URL_MAX) {
+            showToast(t('toast-url-too-long'));
+            // Offer the JSON payload as plain text to copy/share
+            showPlainCopyDialog(json);
+            return;
+        }
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(url);
+            showToast(t('toast-share-link-copied'));
+            return;
+        }
+        fallbackCopy(url, () => showToast(t('toast-share-link-copied')));
+    } catch (e) {
+        // As a last resort, copy raw prompt text
+        fallbackCopy(text, () => showToast(t('toast-copied')));
     }
 }
 

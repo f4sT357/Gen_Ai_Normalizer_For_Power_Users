@@ -27,7 +27,7 @@ Define your role, tasks, contexts, and constraints in a clean, guided interface.
 
 ### 2. Powerful Template Management
 ![Template Management](<img width="537" height="37" alt="templates" src="https://github.com/user-attachments/assets/6338a248-f59f-46cb-a9bd-31d07c8b2862" />
-
+)
 Manage dozens of prompts with ease. Categorize by Business, Writing, or Research, and switch between localized templates instantly.
 
 ### 3. Real-time Quality Score

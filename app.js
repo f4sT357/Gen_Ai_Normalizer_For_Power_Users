@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // PWA - Service Worker Registration
 // ============================================================
 if ('serviceWorker' in navigator) {
@@ -26,6 +26,7 @@ const FIELDS = [
     { id: 'f-length', prefixKey: 'prefix-length', required: false },
     { id: 'f-reasoning', prefixKey: 'prefix-reasoning', required: false },
     { id: 'f-lang', prefixKey: 'prefix-lang', required: false },
+    { id: 'f-hallucination', prefixKey: 'prefix-hallucination', required: false },
 ];
 
 // ============================================================
@@ -112,9 +113,13 @@ async function loadDefaultTemplates() {
 
 function parseMarkdownToData(markdown) {
     const data = {};
+    const sections = markdown
+        .split(/(?=^#\s)/m)
+        .map(section => section.trim())
+        .filter(section => section.startsWith('# '));
     // Dynamically build headerMap from the current language's I18N prefixes
     const headerMap = {};
-    const fields = ['role', 'task', 'context', 'constraint', 'format', 'tone', 'length', 'reasoning', 'lang'];
+    const fields = ['role', 'task', 'context', 'constraint', 'hallucination', 'format', 'tone', 'length', 'reasoning', 'lang'];
     fields.forEach(f => {
         const prefixStr = I18N[lang] && I18N[lang]['prefix-' + f];
         if (prefixStr) {
@@ -184,7 +189,7 @@ function setLang(l) {
 function applyUI() {
     document.getElementById('hdr-subtitle').textContent = t('subtitle');
 
-    const fields = ['role', 'task', 'context', 'constraint', 'format', 'tone', 'length', 'reasoning', 'lang'];
+    const fields = ['role', 'task', 'context', 'constraint', 'hallucination', 'format', 'tone', 'length', 'reasoning', 'lang'];
     const requiredFields = ['task', 'format'];
     fields.forEach(f => {
         const tagEl = document.getElementById('tag-' + f);
@@ -197,6 +202,8 @@ function applyUI() {
         if (inputEl && inputEl.tagName !== 'SELECT') inputEl.placeholder = t('ph-' + f) || '';
     });
     document.getElementById('f-format-custom').placeholder = t('ph-format-custom');
+    const hallucinationCustom = document.getElementById('f-hallucination-custom');
+    if (hallucinationCustom) hallucinationCustom.placeholder = t('ph-hallucination-custom');
 
     const noteEl = document.getElementById('note-reasoning');
     if (noteEl) noteEl.textContent = t('note-reasoning');
@@ -251,6 +258,7 @@ function rebuildSelects() {
         sel.value = prev;
     }
     rebuild('f-format', 'format-options');
+    rebuild('f-hallucination', 'hallucination-options');
     rebuild('f-tone', 'tone-options');
     rebuild('f-length', 'length-options');
     rebuild('f-reasoning', 'reasoning-options');
@@ -266,6 +274,11 @@ function getFieldValue(fieldId) {
         if (sel === 'custom') return document.getElementById('f-format-custom').value.trim();
         return sel;
     }
+    if (fieldId === 'f-hallucination') {
+        const sel = document.getElementById('f-hallucination').value;
+        if (sel === 'custom') return document.getElementById('f-hallucination-custom').value.trim();
+        return sel;
+    }
     const el = document.getElementById(fieldId);
     return el ? el.value.trim() : '';
 }
@@ -275,6 +288,12 @@ function update() {
     if (!fmtEl) return;
     const fmtSel = fmtEl.value;
     document.getElementById('f-format-custom').style.display = fmtSel === 'custom' ? 'block' : 'none';
+    const hallucinationEl = document.getElementById('f-hallucination');
+    if (hallucinationEl) {
+        const hallucinationSel = hallucinationEl.value;
+        const hallucinationCustom = document.getElementById('f-hallucination-custom');
+        if (hallucinationCustom) hallucinationCustom.style.display = hallucinationSel === 'custom' ? 'block' : 'none';
+    }
 
     const parts = [];
     let filledCount = 0, requiredFilled = 0;
@@ -453,6 +472,8 @@ function resetAll() {
     });
     const custom = document.getElementById('f-format-custom');
     if (custom) custom.value = '';
+    const hallucinationCustom = document.getElementById('f-hallucination-custom');
+    if (hallucinationCustom) hallucinationCustom.value = '';
     update();
     showToast(t('toast-reset'));
 }
@@ -504,10 +525,11 @@ function saveTemplate() {
     const data = {};
     FIELDS.forEach(f => { data[f.id] = getFieldValue(f.id); });
     data['f-format-custom'] = document.getElementById('f-format-custom').value.trim();
+    data['f-hallucination-custom'] = document.getElementById('f-hallucination-custom').value.trim();
     templates.push({ name, data });
     persist(); renderTemplates();
     nameInput.value = '';
-    showToast(`「${name}」${t('toast-saved')}`);
+    showToast(`縲・{name}縲・{t('toast-saved')}`);
 }
 
 function loadTemplate(i) {
@@ -518,15 +540,17 @@ function loadTemplate(i) {
     });
     const custom = document.getElementById('f-format-custom');
     if (custom) custom.value = tmpl.data['f-format-custom'] || '';
+    const hallucinationCustom = document.getElementById('f-hallucination-custom');
+    if (hallucinationCustom) hallucinationCustom.value = tmpl.data['f-hallucination-custom'] || '';
     update();
-    showToast(`「${tmpl.name}」${t('toast-loaded')}`);
+    showToast(`縲・{tmpl.name}縲・{t('toast-loaded')}`);
 }
 
 function deleteTemplate(i) {
     const name = templates[i].name;
     templates.splice(i, 1);
     persist(); renderTemplates();
-    showToast(`「${name}」${t('toast-deleted')}`);
+    showToast(`縲・{name}縲・{t('toast-deleted')}`);
 }
 
 function persist() { 
@@ -576,8 +600,7 @@ function showToast(msg) {
 }
 
 // ============================================================
-// ① オートセーブ
-// ============================================================
+// 竭 繧ｪ繝ｼ繝医そ繝ｼ繝・// ============================================================
 const AUTOSAVE_KEY = 'pb_autosave';
 
 function autosave() {
@@ -588,6 +611,8 @@ function autosave() {
     });
     const custom = document.getElementById('f-format-custom');
     if (custom) data['f-format-custom'] = custom.value;
+    const hallucinationCustom = document.getElementById('f-hallucination-custom');
+    if (hallucinationCustom) data['f-hallucination-custom'] = hallucinationCustom.value;
     localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
 }
 
@@ -601,11 +626,13 @@ function restoreAutosave() {
         });
         const custom = document.getElementById('f-format-custom');
         if (custom && saved['f-format-custom'] !== undefined) custom.value = saved['f-format-custom'];
+        const hallucinationCustom = document.getElementById('f-hallucination-custom');
+        if (hallucinationCustom && saved['f-hallucination-custom'] !== undefined) hallucinationCustom.value = saved['f-hallucination-custom'];
     } catch (e) { }
 }
 
 // ============================================================
-// ② フィールド折りたたみ
+// 竭｡ 繝輔ぅ繝ｼ繝ｫ繝画釜繧翫◆縺溘∩
 // ============================================================
 const COLLAPSE_KEY = 'pb_collapsed';
 
@@ -648,7 +675,7 @@ function restoreCollapsed() {
 }
 
 // ============================================================
-// ③ カテゴリフィルター
+// 竭｢ 繧ｫ繝・ざ繝ｪ繝輔ぅ繝ｫ繧ｿ繝ｼ
 // ============================================================
 const CAT_MAP = {
     biz: ['🔍', '📧', '📊', '⚖️'],
@@ -692,7 +719,7 @@ function filterTemplates() {
 }
 
 // ============================================================
-// ④ キーボードショートカット
+// 竭｣ 繧ｭ繝ｼ繝懊・繝峨す繝ｧ繝ｼ繝医き繝・ヨ
 // ============================================================
 document.addEventListener('keydown', e => {
     const ctrl = e.ctrlKey || e.metaKey;
@@ -715,8 +742,7 @@ document.addEventListener('keydown', e => {
 });
 
 // ============================================================
-// ⑤ プレビュー直接編集
-// ============================================================
+// 竭､ 繝励Ξ繝薙Η繝ｼ逶ｴ謗･邱ｨ髮・// ============================================================
 let editMode = false;
 
 function getPromptText() {

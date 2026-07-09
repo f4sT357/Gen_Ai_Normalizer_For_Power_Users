@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "serve-local",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-Command",
+				"if (Get-Command python -ErrorAction SilentlyContinue) { python -m http.server 8080 } elseif (Get-Command npx -ErrorAction SilentlyContinue) { npx http-server . -p 8080 -c-1 } else { Write-Error 'Python or Node.js is required for the local server.' }"
+			],
+			"isBackground": true,
+			"group": "build"
+		}
+	]
+}

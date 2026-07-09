@@ -105,6 +105,19 @@
           </div>
         </div>
 
+        <div class="form-section" id="sec-hallucination">
+          <div class="field-header">
+            <span class="field-tag optional" id="tag-hallucination"></span>
+            <label for="f-hallucination" id="lbl-hallucination"></label>
+            <button class="collapse-btn" onclick="toggleCollapse('sec-hallucination')" tabindex="-1">▾</button>
+          </div>
+          <div class="field-body">
+            <p class="field-desc" id="desc-hallucination"></p>
+            <select id="f-hallucination" onchange="update()"></select>
+            <textarea id="f-hallucination-custom" oninput="update()" style="display:none;margin-top:8px"></textarea>
+          </div>
+        </div>
+
         <div class="form-section" id="sec-format">
           <div class="field-header">
             <span class="field-tag" id="tag-format"></span>

@@ -1,5 +1,6 @@
 
 
+
 # Generative AI Normalizer For Power User (GANFPU)
 “Build your prompt once. Use it everywhere.”
 
@@ -31,7 +32,7 @@ Define your role, tasks, contexts, and constraints in a clean, guided interface.
 Manage dozens of prompts with ease. Categorize by Business, Writing, or Research, and switch between localized templates instantly.
 
 ### 3. Real-time Quality Score
-![Quality Score]<img width="260" height="383" alt="scores" src="https://github.com/user-attachments/assets/06e48375-cced-4abc-9c12-a34b2093c16c" />
+![Quality Score]<img width="537" height="37" alt="スクリーンショット 2026-07-09 103459" src="https://github.com/user-attachments/assets/07b2efdd-33f1-4cec-b99f-8084dbfb6e50" />
 
 Get instant feedback on your prompt's richness. The tool analyzes your inputs to provide a "Quality Score," helping you craft more robust interactions with AI models.
 

@@ -104,6 +104,7 @@
       { "value": "事実と推測を明確に区別してください。", "label": "事実と推測を区別" },
       { "value": "必要に応じて検索・検証を優先してください。", "label": "検索・検証を優先" },
       { "value": "存在や型番を推測で補完しないでください。", "label": "固有名詞は推測しない" },
+      { "value": "分からないことは「分からない」と答えてください。\n事実と推測を明確に区別してください。\n必要に応じて検索・検証を優先してください。\n存在や型番を推測で補完しないでください。", "label": "全部有効" },
       { "value": "custom", "label": "カスタム指定..." }
     ],
     "tone-options": [
@@ -258,6 +259,7 @@
       { "value": "Clearly distinguish facts from assumptions.", "label": "Separate facts and assumptions" },
       { "value": "Prioritize search and verification when needed.", "label": "Prioritize search and verification" },
       { "value": "Do not guess missing product names or model numbers.", "label": "Do not guess exact names" },
+      { "value": "Say \"I don't know\" when something is uncertain.\nClearly distinguish facts from assumptions.\nPrioritize search and verification when needed.\nDo not guess missing product names or model numbers.", "label": "Enable all" },
       { "value": "custom", "label": "Custom..." }
     ],
     "tone-options": [
@@ -412,6 +414,7 @@
       { "value": "请清楚区分事实与假设。", "label": "区分事实与假设" },
       { "value": "必要时优先进行搜索和验证。", "label": "优先搜索与验证" },
       { "value": "不要猜测缺失的产品名或型号。", "label": "不要猜测具体名称" },
+      { "value": "不确定时请明确说「我不知道」。\n请清楚区分事实与假设。\n必要时优先进行搜索和验证。\n不要猜测缺失的产品名或型号。", "label": "全部启用" },
       { "value": "custom", "label": "自定义..." }
     ],
     "tone-options": [
@@ -545,6 +548,15 @@
     "prefix-length": "# 출력 길이\n",
     "prefix-reasoning": "# 응답 방식\n",
     "prefix-lang": "# 언어\n",
+    "hallucination-options": [
+      { "value": "", "label": "지정 없음（AI에게 맡김）" },
+      { "value": "확실하지 않으면 \"모르겠습니다\"라고 답해 주세요。", "label": "불확실성 명시" },
+      { "value": "사실과 추정을 명확히 구분해 주세요。", "label": "사실과 추정 구분" },
+      { "value": "필요할 때는 검색과 검증을 우선해 주세요。", "label": "검색·검증 우선" },
+      { "value": "빠진 제품명이나 모델명을 추측하지 마세요。", "label": "고유명사 추측 금지" },
+      { "value": "확실하지 않으면 \"모르겠습니다\"라고 답해 주세요。\n사실과 추정을 명확히 구분해 주세요。\n필요할 때는 검색과 검증을 우선해 주세요。\n빠진 제품명이나 모델명을 추측하지 마세요。", "label": "모두 활성화" },
+      { "value": "custom", "label": "직접 입력..." }
+    ],
     "format-options": [
       { "value": "", "label": "── 선택해 주세요 ──" },
       { "value": "글머리 기호 목록으로 출력해 주세요。", "label": "글머리 기호 목록" },
@@ -690,6 +702,15 @@
     "prefix-length": "# Extensión\n",
     "prefix-reasoning": "# Enfoque de respuesta\n",
     "prefix-lang": "# Idioma\n",
+    "hallucination-options": [
+      { "value": "", "label": "Sin preferencia (que decida la IA)" },
+      { "value": "Indica claramente cuándo algo no es seguro。", "label": "Indicar incertidumbre" },
+      { "value": "Distingue claramente los hechos de las suposiciones。", "label": "Separar hechos y supuestos" },
+      { "value": "Prioriza la búsqueda y la verificación cuando sea necesario。", "label": "Priorizar búsqueda y verificación" },
+      { "value": "No adivines nombres de productos o números de modelo faltantes。", "label": "No adivinar nombres exactos" },
+      { "value": "Indica claramente cuándo algo no es seguro。\nDistingue claramente los hechos de las suposiciones。\nPrioriza la búsqueda y la verificación cuando sea necesario。\nNo adivines nombres de productos o números de modelo faltantes。", "label": "Activar todo" },
+      { "value": "custom", "label": "Personalizado..." }
+    ],
     "format-options": [
       { "value": "", "label": "── Selecciona un formato ──" },
       { "value": "Por favor responde con viñetas.", "label": "Lista con viñetas" },
@@ -835,6 +856,15 @@
     "prefix-length": "# Longueur\n",
     "prefix-reasoning": "# Approche\n",
     "prefix-lang": "# Langue\n",
+    "hallucination-options": [
+      { "value": "", "label": "Aucune préférence (à laisser à l'IA)" },
+      { "value": "Indiquez clairement quand une information n'est pas sûre。", "label": "Signaler l'incertitude" },
+      { "value": "Distinguez clairement les faits des hypothèses。", "label": "Séparer faits et hypothèses" },
+      { "value": "Privilégiez la recherche et la vérification si nécessaire。", "label": "Prioriser recherche et vérification" },
+      { "value": "N'inventez pas de noms de produits ou de numéros de modèle manquants。", "label": "Ne pas deviner les noms exacts" },
+      { "value": "Indiquez clairement quand une information n'est pas sûre。\nDistinguez clairement les faits des hypothèses。\nPrivilégiez la recherche et la vérification si nécessaire。\nN'inventez pas de noms de produits ou de numéros de modèle manquants。", "label": "Tout activer" },
+      { "value": "custom", "label": "Personnalisé..." }
+    ],
     "format-options": [
       { "value": "", "label": "── Sélectionnez un format ──" },
       { "value": "Veuillez répondre sous forme de liste à puces。", "label": "Liste à puces" },

@@ -27,7 +27,8 @@ GANFPU is a lightweight, local-only developer tool designed to **standardize pro
 Define your role, tasks, contexts, and constraints in a clean, guided interface. This ensures that every prompt you build follows industry best practices.
 
 ### 2. Powerful Template Management
-![Template Management]<img width="537" height="37" alt="templates" src="https://github.com/user-attachments/assets/6338a248-f59f-46cb-a9bd-31d07c8b2862" />
+![Template Management]<img width="260" height="383" alt="スクリーンショット 2026-07-09 103451" src="https://github.com/user-attachments/assets/f2d74eb5-5059-4cfe-8920-782a0b3efb4d" />
+
 
 Manage dozens of prompts with ease. Categorize by Business, Writing, or Research, and switch between localized templates instantly.
 

@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // PWA - Service Worker Registration
 // ============================================================
 if ('serviceWorker' in navigator) {
@@ -344,6 +344,26 @@ function applyUI() {
 
     const sh = document.getElementById('shortcut-hint');
     if (sh) sh.textContent = t('shortcut-hint');
+
+    // LM Studio Connection
+    const titleLM = document.getElementById('title-lm-connect');
+    if (titleLM) titleLM.textContent = t('card-lm-title');
+    const btnLMFetch = document.getElementById('btn-lm-fetch');
+    if (btnLMFetch) btnLMFetch.textContent = t('btn-lm-fetch');
+    const optLMPl = document.getElementById('opt-lm-placeholder');
+    if (optLMPl) optLMPl.textContent = t('ph-lm-model-select');
+    const btnGrill = document.getElementById('btn-grill-me');
+    if (btnGrill) btnGrill.textContent = t('btn-grill-me');
+
+    // Grill Me Modal
+    const grillTitle = document.getElementById('grill-title-text');
+    if (grillTitle) grillTitle.textContent = t('grill-title');
+    const btnGrillApply = document.getElementById('btn-grill-apply');
+    if (btnGrillApply) btnGrillApply.textContent = t('btn-grill-apply');
+    const btnGrillClose = document.getElementById('btn-grill-close');
+    if (btnGrillClose) btnGrillClose.textContent = t('btn-grill-close');
+    const grillInput = document.getElementById('grillInput');
+    if (grillInput) grillInput.placeholder = t('grill-placeholder');
 
     buildCatFilter();
 }
@@ -918,6 +938,314 @@ function toggleEditMode() {
         preview.contentEditable = 'false';
         toggle.textContent = t('edit-mode-on');
         toggle.classList.remove('active');
+    }
+}
+
+// ============================================================
+// LM Studio & Grill Me Integration
+// ============================================================
+let selectedLMModel = '';
+let grillMessages = [];
+
+async function fetchLMModels() {
+    const endpointInput = document.getElementById('lm-endpoint');
+    if (!endpointInput) return;
+    const endpoint = endpointInput.value.trim();
+    const select = document.getElementById('lm-model-select');
+    const actionsArea = document.getElementById('lm-actions-area');
+    
+    // Clear select
+    select.innerHTML = `<option value="">${t('ph-lm-model-select')}</option>`;
+    if (actionsArea) actionsArea.style.display = 'none';
+
+    try {
+        const res = await fetch(`${endpoint}/models`);
+        if (!res.ok) throw new Error('Failed to fetch models');
+        const data = await res.json();
+        
+        if (data && Array.isArray(data.data)) {
+            data.data.forEach(model => {
+                const opt = document.createElement('option');
+                opt.value = model.id;
+                opt.textContent = model.id;
+                select.appendChild(opt);
+            });
+            showToast(t('toast-lm-connect-success'));
+        } else {
+            throw new Error('Invalid response structure');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast(t('toast-lm-connect-fail'));
+    }
+}
+
+function onLMModelChange() {
+    const select = document.getElementById('lm-model-select');
+    const actionsArea = document.getElementById('lm-actions-area');
+    selectedLMModel = select ? select.value : '';
+    
+    if (actionsArea) {
+        actionsArea.style.display = selectedLMModel ? 'block' : 'none';
+    }
+}
+
+function appendGrillMessage(sender, text) {
+    const chatLog = document.getElementById('grillChatLog');
+    if (!chatLog) return;
+    
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `chat-msg ${sender}`;
+    msgDiv.textContent = text;
+    
+    chatLog.appendChild(msgDiv);
+    chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+async function startGrillMe() {
+    if (!selectedLMModel) return;
+    
+    const modal = document.getElementById('grillModal');
+    if (modal) modal.style.display = 'flex';
+    
+    const chatLog = document.getElementById('grillChatLog');
+    if (chatLog) chatLog.innerHTML = '';
+    
+    const input = document.getElementById('grillInput');
+    if (input) {
+        input.value = '';
+        input.disabled = false;
+    }
+    
+    // Setup initial system prompt and user draft configuration
+    const draftPrompt = getPromptText() || '';
+    
+    const filledFields = {};
+    const emptyFields = [];
+    FIELDS.forEach(f => {
+        const val = getFieldValue(f.id);
+        const key = f.id.replace('f-', '');
+        if (val) {
+            filledFields[key] = val;
+        } else {
+            emptyFields.push(key);
+        }
+    });
+
+    const systemPrompt = `You are an expert prompt engineer. Your job is to refine and polish the user's draft prompt configuration.
+    
+    Rules:
+    1. Analyze the filled fields and the full preview text. Identify the absolute most critical missing details (e.g., specific context, target audience, precise goals).
+    2. DO NOT ask repetitive questions. If the user has already answered a question (e.g., about tone, length, target audience, or role) in previous turns, or if a field is already filled in the initial configuration, do not ask about it again.
+    3. If the user gives a specific domain (like a game, software, or business sector, e.g., "GT7"), ask domain-specific questions (e.g., "What modes are you playing? What is your budget or car preferences in the game?") instead of generic questions.
+    4. Ask only 1 or 2 questions per turn. Keep them extremely short, direct, and easy to answer.
+    5. Do not include excessive polite greetings or preambles.
+    6. Write your response in the language the user is using (current language code: ${lang}).`;
+    
+    let userInitialMsg = `Here is my current prompt configuration:\n`;
+    userInitialMsg += `Filled fields:\n${JSON.stringify(filledFields, null, 2)}\n\n`;
+    if (emptyFields.length > 0) {
+        userInitialMsg += `Empty fields to consider filling: ${emptyFields.join(', ')}\n\n`;
+    }
+    userInitialMsg += `Full Preview Text:\n---\n${draftPrompt}\n---\n`;
+    userInitialMsg += `Please analyze this configuration and ask me 1 or 2 targeted questions to fill the most important gaps.`;
+
+    grillMessages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userInitialMsg }
+    ];
+
+    appendGrillMessage('system', t('grill-ai-init-msg'));
+    
+    await getLMResponse();
+}
+
+async function getLMResponse() {
+    const endpointInput = document.getElementById('lm-endpoint');
+    if (!endpointInput) return;
+    const endpoint = endpointInput.value.trim();
+    
+    const sendBtn = document.getElementById('btn-grill-send');
+    const input = document.getElementById('grillInput');
+    
+    if (sendBtn) sendBtn.disabled = true;
+    if (input) input.disabled = true;
+    
+    appendGrillMessage('system', 'Thinking...');
+    
+    try {
+        const res = await fetch(`${endpoint}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: selectedLMModel,
+                messages: grillMessages.filter(m => m.role !== 'system' || grillMessages.indexOf(m) === 0),
+                temperature: 0.7
+            })
+        });
+        
+        // Remove 'Thinking...' message
+        const chatLog = document.getElementById('grillChatLog');
+        if (chatLog && chatLog.lastChild && chatLog.lastChild.textContent === 'Thinking...') {
+            chatLog.removeChild(chatLog.lastChild);
+        }
+        
+        if (!res.ok) throw new Error('API request failed');
+        const data = await res.json();
+        
+        const reply = data.choices[0].message.content;
+        grillMessages.push({ role: 'assistant', content: reply });
+        appendGrillMessage('ai', reply);
+        
+    } catch (err) {
+        console.error(err);
+        // Remove 'Thinking...' if still there
+        const chatLog = document.getElementById('grillChatLog');
+        if (chatLog && chatLog.lastChild && chatLog.lastChild.textContent === 'Thinking...') {
+            chatLog.removeChild(chatLog.lastChild);
+        }
+        appendGrillMessage('system', 'Error: Failed to get response from local server. Make sure LM Studio is running and CORS is allowed.');
+    } finally {
+        if (sendBtn) sendBtn.disabled = false;
+        if (input) {
+            input.disabled = false;
+            input.focus();
+        }
+    }
+}
+
+async function sendGrillMeResponse() {
+    const input = document.getElementById('grillInput');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    
+    appendGrillMessage('user', text);
+    grillMessages.push({ role: 'user', content: text });
+    input.value = '';
+    
+    await getLMResponse();
+}
+
+function closeGrillMe() {
+    const modal = document.getElementById('grillModal');
+    if (modal) modal.style.display = 'none';
+    grillMessages = [];
+}
+
+// Add shortcut for Enter to send in Grill Me Input
+document.addEventListener('DOMContentLoaded', () => {
+    const grillInput = document.getElementById('grillInput');
+    if (grillInput) {
+        grillInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendGrillMeResponse();
+            }
+        });
+    }
+});
+
+async function applyGrillMeResult() {
+    const endpointInput = document.getElementById('lm-endpoint');
+    if (!endpointInput) return;
+    const endpoint = endpointInput.value.trim();
+    
+    const chatLog = document.getElementById('grillChatLog');
+    appendGrillMessage('system', 'Polishing prompt & generating structured fields...');
+    
+    // Request AI to format the final polished prompt as JSON
+    const finalInstruct = `Based on our conversation, please structure the polished prompt into the following JSON format. Output ONLY the JSON block, no other text:
+{
+  "f-role": "role or persona",
+  "f-task": "polished task description",
+  "f-context": "background details gathered",
+  "f-constraint": "constraints identified",
+  "f-format": "specified format (if any, matching the options: bullets, list, table, head-para, qa, pro-con, steps, code, json, structure or a custom description)",
+  "f-tone": "specified tone",
+  "f-length": "specified length"
+}
+Ensure all keys are present. For the format, tone, and length, you can map them to the best-matching existing option or provide custom descriptions. Output only the raw JSON.`;
+
+    grillMessages.push({ role: 'user', content: finalInstruct });
+
+    try {
+        const res = await fetch(`${endpoint}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: selectedLMModel,
+                messages: grillMessages,
+                temperature: 0.2
+            })
+        });
+        
+        if (!res.ok) throw new Error('Failed to get structured JSON');
+        const data = await res.json();
+        const reply = data.choices[0].message.content.trim();
+        
+        // Remove 'Polishing...' message
+        if (chatLog && chatLog.lastChild && chatLog.lastChild.textContent.includes('Polishing')) {
+            chatLog.removeChild(chatLog.lastChild);
+        }
+        
+        // Parse JSON from LLM response
+        let jsonStr = reply;
+        const jsonMatch = reply.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            jsonStr = jsonMatch[0];
+        }
+        
+        const parsed = JSON.parse(jsonStr);
+        
+        // Populate GANFPU fields
+        Object.keys(parsed).forEach(fieldId => {
+            const val = parsed[fieldId];
+            const el = document.getElementById(fieldId);
+            if (!el) return;
+            
+            if (el.tagName === 'SELECT') {
+                const hasOption = Array.from(el.options).some(o => o.value === val);
+                if (hasOption) {
+                    el.value = val;
+                } else {
+                    el.value = 'custom';
+                    const customEl = document.getElementById(fieldId + '-custom');
+                    if (customEl) {
+                        customEl.value = val;
+                        customEl.style.display = 'block';
+                    }
+                }
+            } else {
+                el.value = val;
+            }
+        });
+        
+        update();
+        closeGrillMe();
+        showToast('Prompt updated successfully from interview!');
+    } catch (err) {
+        console.error(err);
+        if (chatLog && chatLog.lastChild && chatLog.lastChild.textContent.includes('Polishing')) {
+            chatLog.removeChild(chatLog.lastChild);
+        }
+        appendGrillMessage('system', 'Failed to map response to structured fields automatically. Copying AI text to Task field instead...');
+        
+        // Fallback: put the last assistant message content into f-task
+        const lastAIMsg = grillMessages.findLast(m => m.role === 'assistant');
+        if (lastAIMsg) {
+            const taskEl = document.getElementById('f-task');
+            if (taskEl) {
+                taskEl.value = lastAIMsg.content;
+                update();
+            }
+            setTimeout(() => {
+                closeGrillMe();
+                showToast('Applied fallback to Task field');
+            }, 2000);
+        } else {
+            appendGrillMessage('system', 'No AI responses to apply.');
+        }
     }
 }
 

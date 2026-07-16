@@ -158,7 +158,19 @@
     "tmpl-explanation": "📚 概念・用語の解説",
     "tmpl-brainstorming": "🧠 アイデア・ブレスト",
     "tmpl-analysis": "🔎 文章・データの分析",
-    "tmpl-faq": "❓ FAQ・想定問答作成"
+    "tmpl-faq": "❓ FAQ・想定問答作成",
+    "card-lm-title": "AI LINK (LM Studio)",
+    "lbl-lm-endpoint": "API エンドポイント",
+    "btn-lm-fetch": "モデル取得",
+    "ph-lm-model-select": "-- モデルを選択 --",
+    "btn-grill-me": "🔥 Grill Me",
+    "toast-lm-connect-success": "LM Studio に接続しました",
+    "toast-lm-connect-fail": "LM Studio への接続に失敗しました",
+    "grill-title": "🔥 Grill Me - プロンプト磨き上げ",
+    "btn-grill-apply": "結果を反映して終了",
+    "btn-grill-close": "キャンセル",
+    "grill-placeholder": "回答を入力してください... (Enterで送信、Shift+Enterで改行)",
+    "grill-ai-init-msg": "下書きプロンプトを分析しています... より良いものにするためにいくつか質問させていただきます。"
   },
   "en": {
     "subtitle": "AI Prompt Composition Assistant",
@@ -319,7 +331,19 @@
     "tmpl-explanation": "📚 Concept Explanation",
     "tmpl-brainstorming": "🧠 Brainstorming",
     "tmpl-analysis": "🔎 Text & Data Analysis",
-    "tmpl-faq": "❓ FAQ Creation"
+    "tmpl-faq": "❓ FAQ Creation",
+    "card-lm-title": "AI LINK (LM Studio)",
+    "lbl-lm-endpoint": "API Endpoint",
+    "btn-lm-fetch": "Fetch Models",
+    "ph-lm-model-select": "-- Select Model --",
+    "btn-grill-me": "🔥 Grill Me",
+    "toast-lm-connect-success": "Connected to LM Studio successfully",
+    "toast-lm-connect-fail": "Failed to connect to LM Studio",
+    "grill-title": "🔥 Grill Me - AI Prompt Polisher",
+    "btn-grill-apply": "Apply Changes",
+    "btn-grill-close": "Cancel",
+    "grill-placeholder": "Type your answer here... (Enter to send, Shift+Enter for newline)",
+    "grill-ai-init-msg": "Analyzing draft prompt... Let me ask you some questions to make it better."
   },
   "zh": {
     "subtitle": "AI提示词创作助手",
@@ -480,7 +504,19 @@
     "tmpl-explanation": "📚 概念与术语解释",
     "tmpl-brainstorming": "🧠 创意头脑风暴",
     "tmpl-analysis": "🔎 文本与数据分析",
-    "tmpl-faq": "❓ FAQ与常见问题解答"
+    "tmpl-faq": "❓ FAQ与常见问题解答",
+    "card-lm-title": "AI LINK (LM Studio)",
+    "lbl-lm-endpoint": "API Endpoint",
+    "btn-lm-fetch": "Fetch Models",
+    "ph-lm-model-select": "-- Select Model --",
+    "btn-grill-me": "🔥 Grill Me",
+    "toast-lm-connect-success": "Connected to LM Studio successfully",
+    "toast-lm-connect-fail": "Failed to connect to LM Studio",
+    "grill-title": "🔥 Grill Me - AI Prompt Polisher",
+    "btn-grill-apply": "Apply Changes",
+    "btn-grill-close": "Cancel",
+    "grill-placeholder": "Type your answer here... (Enter to send, Shift+Enter for newline)",
+    "grill-ai-init-msg": "Analyzing draft prompt... Let me ask you some questions to make it better."
   },
   "ko": {
     "subtitle": "AI 프롬프트 작성 보조 도구",
@@ -640,7 +676,19 @@
     "tmpl-explanation": "📚 개념 및 용어 설명",
     "tmpl-brainstorming": "🧠 아이디어 브레인스토밍",
     "tmpl-analysis": "🔎 문장 및 데이터 분석",
-    "tmpl-faq": "❓ FAQ 및 예상 질의응답"
+    "tmpl-faq": "❓ FAQ 및 예상 질의응답",
+    "card-lm-title": "AI LINK (LM Studio)",
+    "lbl-lm-endpoint": "API Endpoint",
+    "btn-lm-fetch": "Fetch Models",
+    "ph-lm-model-select": "-- Select Model --",
+    "btn-grill-me": "🔥 Grill Me",
+    "toast-lm-connect-success": "Connected to LM Studio successfully",
+    "toast-lm-connect-fail": "Failed to connect to LM Studio",
+    "grill-title": "🔥 Grill Me - AI Prompt Polisher",
+    "btn-grill-apply": "Apply Changes",
+    "btn-grill-close": "Cancel",
+    "grill-placeholder": "Type your answer here... (Enter to send, Shift+Enter for newline)",
+    "grill-ai-init-msg": "Analyzing draft prompt... Let me ask you some questions to make it better."
   },
   "es": {
     "subtitle": "Asistente de creación de prompts para IA",
@@ -800,7 +848,19 @@
     "tmpl-explanation": "📚 Explicación de conceptos",
     "tmpl-brainstorming": "🧠 Lluvia de ideas",
     "tmpl-analysis": "🔎 Análisis de datos y texto",
-    "tmpl-faq": "❓ Creación de FAQ"
+    "tmpl-faq": "❓ Creación de FAQ",
+    "card-lm-title": "AI LINK (LM Studio)",
+    "lbl-lm-endpoint": "API Endpoint",
+    "btn-lm-fetch": "Fetch Models",
+    "ph-lm-model-select": "-- Select Model --",
+    "btn-grill-me": "🔥 Grill Me",
+    "toast-lm-connect-success": "Connected to LM Studio successfully",
+    "toast-lm-connect-fail": "Failed to connect to LM Studio",
+    "grill-title": "🔥 Grill Me - AI Prompt Polisher",
+    "btn-grill-apply": "Apply Changes",
+    "btn-grill-close": "Cancel",
+    "grill-placeholder": "Type your answer here... (Enter to send, Shift+Enter for newline)",
+    "grill-ai-init-msg": "Analyzing draft prompt... Let me ask you some questions to make it better."
   },
   "fr": {
     "subtitle": "Assistant de rédaction de prompts pour IA",
@@ -960,6 +1020,18 @@
     "tmpl-explanation": "📚 Explicación de concept",
     "tmpl-brainstorming": "🧠 Brainstorming",
     "tmpl-analysis": "🔎 Analyse de texte et de données",
-    "tmpl-faq": "❓ Création de FAQ"
+    "tmpl-faq": "❓ Création de FAQ",
+    "card-lm-title": "AI LINK (LM Studio)",
+    "lbl-lm-endpoint": "API Endpoint",
+    "btn-lm-fetch": "Fetch Models",
+    "ph-lm-model-select": "-- Select Model --",
+    "btn-grill-me": "🔥 Grill Me",
+    "toast-lm-connect-success": "Connected to LM Studio successfully",
+    "toast-lm-connect-fail": "Failed to connect to LM Studio",
+    "grill-title": "🔥 Grill Me - AI Prompt Polisher",
+    "btn-grill-apply": "Apply Changes",
+    "btn-grill-close": "Cancel",
+    "grill-placeholder": "Type your answer here... (Enter to send, Shift+Enter for newline)",
+    "grill-ai-init-msg": "Analyzing draft prompt... Let me ask you some questions to make it better."
   }
 }

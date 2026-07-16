@@ -185,6 +185,25 @@
       </div>
 
       <div class="right-panel">
+        <!-- LM Studio Card -->
+        <div class="panel-card" id="lm-panel">
+          <div class="panel-title" id="title-lm-connect">LM Studio Link</div>
+          <div class="lm-row" style="display: flex; gap: 8px;">
+            <input type="text" id="lm-endpoint" value="http://localhost:1234/v1" style="flex: 1;">
+            <button class="btn btn-secondary btn-sm" id="btn-lm-fetch" onclick="fetchLMModels()" style="white-space: nowrap; height: 38px;">Fetch</button>
+          </div>
+          <div class="lm-row" style="margin-top: 10px;">
+            <select id="lm-model-select" onchange="onLMModelChange()">
+              <option value="" id="opt-lm-placeholder">-- Select Model --</option>
+            </select>
+          </div>
+          <div class="lm-actions-row" id="lm-actions-area" style="display: none; margin-top: 10px;">
+            <button class="btn btn-primary" id="btn-grill-me" onclick="startGrillMe()" style="width: 100%; justify-content: center; display: flex; align-items: center; gap: 6px; font-weight: bold;">
+              🔥 Grill Me
+            </button>
+          </div>
+        </div>
+
         <!-- Preview Section -->
         <div class="panel-card">
           <div class="panel-title">
@@ -232,6 +251,27 @@
   </div>
 
   <div class="toast" id="toast"></div>
+
+  <!-- Grill Me Modal -->
+  <div class="modal-overlay" id="grillModal" style="display: none;">
+    <div class="modal-card grill-card">
+      <div class="modal-header">
+        <div class="modal-title" id="grill-title-text">🔥 Grill Me</div>
+        <button class="modal-close-btn" onclick="closeGrillMe()">×</button>
+      </div>
+      <div class="modal-body grill-body">
+        <div class="grill-chat-log" id="grillChatLog"></div>
+        <div class="grill-input-row">
+          <textarea id="grillInput" rows="2" style="resize: none;"></textarea>
+          <button class="btn btn-primary" id="btn-grill-send" onclick="sendGrillMeResponse()" style="height: auto; align-self: stretch;">Send</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-success" id="btn-grill-apply" onclick="applyGrillMeResult()"></button>
+        <button class="btn btn-secondary" id="btn-grill-close" onclick="closeGrillMe()"></button>
+      </div>
+    </div>
+  </div>
 
   <!-- Scripts -->
   <script src="app.js"></script>

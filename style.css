@@ -740,3 +740,213 @@ select {
     display: none;
   }
 }
+
+/* ============================================================
+   LM Studio & Grill Me Modal Styles
+   ============================================================ */
+#lm-panel {
+  border-color: rgba(124, 106, 247, 0.3);
+  background: linear-gradient(180deg, var(--surface) 0%, rgba(17, 17, 24, 0.85) 100%);
+  box-shadow: 0 4px 20px rgba(124, 106, 247, 0.05);
+  margin-bottom: 24px;
+}
+
+.lm-row input[type="text"],
+.lm-row select {
+  font-family: inherit;
+  font-size: 13px;
+}
+
+/* Modal General Styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 8, 0.85);
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  animation: fadeIn 0.3s forwards cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 650px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(124, 106, 247, 0.15);
+  transform: translateY(20px);
+  animation: slideUp 0.3s forwards cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Cyberpunk theme modal additions */
+.grill-card {
+  border: 1px solid rgba(124, 106, 247, 0.5);
+  box-shadow: 0 0 30px rgba(124, 106, 247, 0.2), inset 0 0 15px rgba(124, 106, 247, 0.05);
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(26, 26, 36, 0.4);
+}
+
+.modal-title {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.05em;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.modal-close-btn:hover {
+  color: var(--accent2);
+}
+
+.grill-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.grill-chat-log {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 300px;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Chat Messages */
+.chat-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.chat-msg.system {
+  align-self: center;
+  max-width: 100%;
+  background: transparent;
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 11px;
+  text-align: center;
+  border: none;
+  padding: 4px;
+}
+
+.chat-msg.ai {
+  align-self: flex-start;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-bottom-left-radius: 2px;
+}
+
+.chat-msg.user {
+  align-self: flex-end;
+  background: rgba(124, 106, 247, 0.15);
+  border: 1px solid rgba(124, 106, 247, 0.4);
+  color: var(--text);
+  border-bottom-right-radius: 2px;
+}
+
+.grill-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.grill-input-row textarea {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  line-height: 1.4;
+  height: 52px;
+}
+
+.grill-input-row textarea:focus {
+  border-color: rgba(124, 106, 247, 0.6);
+  outline: none;
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: rgba(26, 26, 36, 0.4);
+}
+
+.btn-success {
+  background: var(--score-high);
+  color: #050508;
+  border: none;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(106, 247, 200, 0.2);
+  font-family: inherit;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-success:hover {
+  background: #57deb1;
+  box-shadow: 0 4px 15px rgba(106, 247, 200, 0.4);
+}
+
+.modal-footer .btn-secondary {
+  padding: 8px 16px;
+  border-radius: 6px;
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  to { transform: translateY(0); }
+}

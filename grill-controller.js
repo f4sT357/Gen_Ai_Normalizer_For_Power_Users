@@ -2,20 +2,48 @@
   const el = (id) => document.getElementById(id);
 
   function buildInitialConversation(intent) {
-    const systemPrompt = `You are an expert prompt engineer. Your job is to elicit requirements before producing a final prompt.
+    const systemPrompt = `You are an expert prompt engineer operating in the requirements-interview phase of a prompt normalization workflow.
 Rules:
-1. Treat the user's current intent below as the ONLY source of task context.
-2. Do not use, infer, or import information from existing Prompt Specification fields, Preview content, previous prompts, or previous sessions.
-3. Never ask for information already supplied in the current intent or later in this conversation.
-4. Do not invent requirements or preferences.
-5. Ask only 1 or 2 short, targeted questions per turn.
-6. If the domain is specific, make the question domain-specific.
-7. Reply in the user's language.`;
-    const user = `Current user intent:\n---\n${intent}\n---\n\nAsk me 1 or 2 targeted questions to resolve the most important ambiguity in this request.`;
+1. Treat the user's current intent as the ONLY source of task context.
+2. Your ONLY job in this phase is to identify missing or ambiguous requirements by asking questions.
+3. Do NOT answer the user's original request.
+4. Do NOT provide recommendations, solutions, explanations, research results, or the final prompt.
+5. Do NOT perform the task described in the user's request.
+6. Never ask for information already supplied in the current intent or later in this conversation.
+7. Do not invent requirements or preferences.
+8. Ask only 1 or 2 short, targeted questions per turn.
+9. Ask only questions whose answers would materially change the final prompt.
+10. If the domain is specific, make the question domain-specific.
+11. Reply in the user's language.
+12. Stay in interview mode until the application explicitly asks you to structure the final requirements.`;
+    const user = `Current user intent:
+---
+${intent}
+---
+
+This is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted questions to resolve the most important ambiguity in this request. Do not answer the task.`;
     return [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: user },
     ];
+  }
+
+  function isInterviewQuestion(text) {
+    const normalized = (text || '').trim();
+    if (!normalized) return false;
+    return /[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/.test(normalized);
+  }
+
+  async function requestInterviewResponse() {
+    let reply = (await window.ganfpuLLM.request(grillMessages, 0.7)).trim();
+    if (isInterviewQuestion(reply)) return reply;
+
+    grillMessages.push({
+      role: 'user',
+      content: `Your previous response answered or attempted the task instead of conducting the interview. Discard that response. Ask ONLY 1 or 2 concise requirement questions. Do not answer, recommend, explain, research, or solve the user's task.`,
+    });
+    reply = (await window.ganfpuLLM.request(grillMessages, 0.3)).trim();
+    return reply;
   }
 
   async function respond() {
@@ -24,7 +52,7 @@ Rules:
     if (input) input.disabled = true;
     appendGrillMessage('system', 'Thinking...');
     try {
-      const reply = await window.ganfpuLLM.request(grillMessages, 0.7);
+      const reply = await requestInterviewResponse();
       const log = el('grillChatLog');
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
       grillMessages.push({ role: 'assistant', content: reply });
@@ -41,6 +69,16 @@ Rules:
         if (log) log.scrollTop = log.scrollHeight;
       });
     }
+  }
+
+  async function send() {
+    const input = el('grillInput');
+    const text = input?.value.trim();
+    if (!text) return;
+    appendGrillMessage('user', text);
+    grillMessages.push({ role: 'user', content: text });
+    input.value = '';
+    await respond();
   }
 
   async function start() {
@@ -147,8 +185,27 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
   function bind() {
     const sendButton = el('btn-grill-send'), applyButton = el('btn-grill-apply');
     if (!sendButton || !applyButton || !window.ganfpuLLM) return false;
-    sendButton.onclick = send;
-    applyButton.onclick = apply;
+
+    const freshSend = sendButton.cloneNode(true);
+    sendButton.replaceWith(freshSend);
+    freshSend.onclick = send;
+
+    const grillInput = el('grillInput');
+    if (grillInput) {
+      const freshInput = grillInput.cloneNode(true);
+      grillInput.replaceWith(freshInput);
+      freshInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          send();
+        }
+      });
+    }
+
+    const freshApply = applyButton.cloneNode(true);
+    applyButton.replaceWith(freshApply);
+    freshApply.onclick = apply;
+
     const resultCopy = el('normal-result-copy');
     if (resultCopy) {
       const freshCopy = resultCopy.cloneNode(true);
@@ -156,6 +213,11 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
       freshCopy.onclick = copyResult;
     }
     window.applyGrillMeResult = apply;
+    window.closeGrillMe = () => {
+      const modal = el('grillModal');
+      if (modal) modal.style.display = 'none';
+      grillMessages = [];
+    };
     return true;
   }
 

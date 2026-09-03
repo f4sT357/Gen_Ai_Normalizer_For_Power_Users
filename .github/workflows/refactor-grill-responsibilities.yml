@@ -3,63 +3,50 @@ name: Refactor Grill Me responsibilities
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   refactor:
-    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'refactor: separate Grill Me responsibilities')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Refactor modules
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
-
           root = Path('.')
           normal = root / 'normal-mode.js'
           free = root / 'free-api.js'
           index = root / 'index.html'
-
           n = normal.read_text()
           f = free.read_text()
           h = index.read_text()
+          n, count = re.subn(r"  function startNormalGrill\(\) \{.*?\n  \}\n\n  function wrapLanguageSwitch", '''  function startNormalGrill() {
+    const input = document.getElementById('normal-intent');
+    const task = document.getElementById('f-task');
+    if (!input || !task) return;
+    const intent = input.value.trim();
+    if (!intent) {
+      input.focus();
+      return;
+    }
+    task.value = intent;
+    update();
+    if (typeof window.ganfpuStartGrill === 'function') {
+      window.ganfpuStartGrill();
+    } else {
+      showToast('Grill Me is still loading. Try again in a moment.');
+    }
+  }
 
-          # Normal Mode owns the user-facing start action; provider code no longer owns it.
-          n = re.sub(
-              r"  function startNormalGrill\(\) \{.*?\n  \}\n\n  function wrapLanguageSwitch",
-              '''  function startNormalGrill() {
-              const input = document.getElementById('normal-intent');
-              const task = document.getElementById('f-task');
-              if (!input || !task) return;
-              const intent = input.value.trim();
-              if (!intent) {
-                input.focus();
-                return;
-              }
-              task.value = intent;
-              update();
-              if (typeof window.ganfpuStartGrill === 'function') {
-                window.ganfpuStartGrill();
-              } else {
-                showToast('Grill Me is still loading. Try again in a moment.');
-              }
-            }
-
-  function wrapLanguageSwitch''',
-              n, flags=re.S)
-
-          # Remove the LM-Studio-specific completion implementation from Normal Mode.
-          n = re.sub(
-              r"  function overrideApply\(\) \{.*?\n  \}\n\n  function init\(\)",
-              '''  function overrideApply() {
+  function wrapLanguageSwitch''', n, flags=re.S)
+          assert count == 1, count
+          n, count = re.subn(r"  function overrideApply\(\) \{.*?\n  \}\n\n  function init\(\)", '''  function overrideApply() {
     window.applyGrillMeResult = function () {
       if (typeof window.ganfpuApplyGrillResult === 'function') {
         return window.ganfpuApplyGrillResult();
@@ -67,12 +54,9 @@ jobs:
     };
   }
 
-  function init()''',
-              n, flags=re.S)
+  function init()''', n, flags=re.S)
+          assert count == 1, count
           normal.write_text(n)
-
-          # Expose only the provider boundary needed by the Grill controller.
-          marker = "  function init() {"
           bridge = """  function exposeLLMBridge() {
     window.ganfpuLLM = {
       request,
@@ -84,32 +68,22 @@ jobs:
 
 """
           if 'function exposeLLMBridge()' not in f:
-              f = f.replace(marker, bridge + marker, 1)
-          f = f.replace("    injectStyles();\n    createUI();", "    injectStyles();\n    createUI();\n    exposeLLMBridge();", 1)
-
-          # Provider module no longer owns Grill Me DOM event handlers.
-          f = re.sub(
-              r"  function replaceNormalHandlers\(\) \{.*?\n  \}\n\n  function init\(\)",
-              '''  function replaceNormalHandlers() {
+              f = f.replace('  function init() {', bridge + '  function init() {', 1)
+              f = f.replace('    injectStyles();\n    createUI();', '    injectStyles();\n    createUI();\n    exposeLLMBridge();', 1)
+          f = re.sub(r"  function replaceNormalHandlers\(\) \{.*?\n  \}\n\n  function init\(\)", '''  function replaceNormalHandlers() {
     // Grill Me UI events are owned by grill-controller.js.
   }
 
-  function init()''',
-              f, flags=re.S)
+  function init()''', f, flags=re.S)
           free.write_text(f)
-
           controller = root / 'grill-controller.js'
           controller.write_text(r'''// ============================================================
 // GANFPU Grill Me controller
 // Owns the Grill Me conversation UI and completion flow.
-// Provider modules only expose an LLM request boundary.
+// Provider modules expose only an LLM request boundary.
 // ============================================================
-
 (() => {
-  function el(id) {
-    return document.getElementById(id);
-  }
-
+  const el = (id) => document.getElementById(id);
   function buildInitialConversation() {
     const draftPrompt = typeof getPromptText === 'function' ? getPromptText() || '' : '';
     const filledFields = {};
@@ -122,12 +96,8 @@ jobs:
     });
     const systemPrompt = `You are an expert prompt engineer. Your job is to elicit requirements before producing a final prompt.\nRules:\n1. Identify the highest-value missing requirement.\n2. Never ask for information already supplied.\n3. Do not invent requirements or preferences.\n4. Ask only 1 or 2 short, targeted questions per turn.\n5. If the domain is specific, make the question domain-specific.\n6. Reply in the user's language. Current UI language: ${document.documentElement.lang || 'ja'}.`;
     const user = `Current prompt configuration:\n${JSON.stringify(filledFields, null, 2)}\n\nEmpty fields: ${emptyFields.join(', ')}\n\nPreview:\n---\n${draftPrompt}\n---\n\nAsk me 1 or 2 targeted questions to resolve the most important ambiguity.`;
-    return [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: user },
-    ];
+    return [{ role: 'system', content: systemPrompt }, { role: 'user', content: user }];
   }
-
   async function getResponse() {
     const send = el('btn-grill-send');
     const input = el('grillInput');
@@ -153,7 +123,6 @@ jobs:
       });
     }
   }
-
   async function startGrill() {
     if (!window.ganfpuLLM) {
       showToast('LLM provider is still loading. Try again in a moment.');
@@ -168,7 +137,6 @@ jobs:
     }
     task.value = input.value.trim();
     update();
-
     const modal = el('grillModal');
     if (modal) modal.style.display = 'flex';
     const chatLog = el('grillChatLog');
@@ -178,15 +146,10 @@ jobs:
       grillInput.value = '';
       grillInput.disabled = false;
     }
-
     grillMessages = buildInitialConversation();
-    appendGrillMessage(
-      'system',
-      `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`,
-    );
+    appendGrillMessage('system', `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`);
     await getResponse();
   }
-
   async function sendResponse() {
     const input = el('grillInput');
     if (!input) return;
@@ -197,7 +160,6 @@ jobs:
     input.value = '';
     await getResponse();
   }
-
   function showNormalResult() {
     const preview = el('preview');
     const result = el('normal-result');
@@ -208,20 +170,8 @@ jobs:
     result.textContent = text;
     wrap.hidden = false;
   }
-
   function applyFields(parsed) {
-    const ids = [
-      'f-role',
-      'f-task',
-      'f-context',
-      'f-constraint',
-      'f-format',
-      'f-tone',
-      'f-length',
-      'f-reasoning',
-      'f-lang',
-      'f-hallucination',
-    ];
+    const ids = ['f-role','f-task','f-context','f-constraint','f-format','f-tone','f-length','f-reasoning','f-lang','f-hallucination'];
     ids.forEach((id) => {
       const value = typeof parsed[id] === 'string' ? parsed[id] : '';
       const field = el(id);
@@ -232,31 +182,22 @@ jobs:
         else if (value) {
           field.value = 'custom';
           const custom = el(id + '-custom');
-          if (custom) {
-            custom.value = value;
-            custom.style.display = 'block';
-          }
+          if (custom) { custom.value = value; custom.style.display = 'block'; }
         } else field.value = '';
-      } else {
-        field.value = value;
-      }
+      } else field.value = value;
     });
   }
-
   async function applyGrillResult() {
-    if (!window.ganfpuLLM) return;
-    if (!window.ganfpuLLM.ensureReady()) return;
+    if (!window.ganfpuLLM || !window.ganfpuLLM.ensureReady()) return;
     const chatLog = el('grillChatLog');
     appendGrillMessage('system', 'Structuring requirements into Prompt Specification...');
     const finalInstruct = `Based on our conversation, structure the final requirements into this JSON format. Output ONLY valid JSON, with every key present. Do not invent requirements: if the user never specified a value and it is not necessary to fulfill the task, use an empty string. Preserve concrete user requirements.\n{\n  "f-role": "", "f-task": "", "f-context": "", "f-constraint": "", "f-format": "", "f-tone": "", "f-length": "", "f-reasoning": "", "f-lang": "", "f-hallucination": ""\n}`;
     grillMessages.push({ role: 'user', content: finalInstruct });
     try {
       const reply = (await window.ganfpuLLM.request(grillMessages, 0.2)).trim();
-      if (chatLog?.lastChild?.textContent.includes('Structuring requirements'))
-        chatLog.removeChild(chatLog.lastChild);
+      if (chatLog?.lastChild?.textContent.includes('Structuring requirements')) chatLog.removeChild(chatLog.lastChild);
       const match = reply.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(match ? match[0] : reply);
-      applyFields(parsed);
+      applyFields(JSON.parse(match ? match[0] : reply));
       update();
       showNormalResult();
       if (typeof window.recordHistory === 'function') window.recordHistory('grill');
@@ -266,12 +207,10 @@ jobs:
       showToast('Prompt Specification updated from interview.');
     } catch (err) {
       console.error(err);
-      if (chatLog?.lastChild?.textContent.includes('Structuring requirements'))
-        chatLog.removeChild(chatLog.lastChild);
+      if (chatLog?.lastChild?.textContent.includes('Structuring requirements')) chatLog.removeChild(chatLog.lastChild);
       appendGrillMessage('system', 'Failed to map the interview to structured fields.');
     }
   }
-
   function bind() {
     const send = el('btn-grill-send');
     const apply = el('btn-grill-apply');
@@ -281,27 +220,20 @@ jobs:
     window.applyGrillMeResult = applyGrillResult;
     return true;
   }
-
   function init() {
     if (bind()) return;
     setTimeout(init, 100);
   }
-
   window.ganfpuStartGrill = startGrill;
   window.ganfpuApplyGrillResult = applyGrillResult;
-
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
 ''')
-
-          # Load controller before provider; it waits for the provider bridge.
           if 'src="grill-controller.js"' not in h:
-              needle = '<script src="normal-mode.js"></script>'
-              h = h.replace(needle, needle + '\n<script src="grill-controller.js"></script>', 1)
+              h = h.replace('<script src="normal-mode.js"></script>', '<script src="normal-mode.js"></script>\n    <script src="grill-controller.js"></script>', 1)
           index.write_text(h)
           PY
-
       - name: Commit refactor
         run: |
           git config user.name "github-actions[bot]"
@@ -309,7 +241,6 @@ jobs:
           git add normal-mode.js free-api.js grill-controller.js index.html
           git commit -m "refactor: separate Grill Me responsibilities [skip ci]"
           git push
-
       - name: Remove temporary workflow
         run: |
           git rm .github/workflows/refactor-grill-responsibilities.yml

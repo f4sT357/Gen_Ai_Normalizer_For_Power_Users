@@ -178,6 +178,11 @@ Rules:
   async function apply() {
     if (!window.ganfpuLLM || !window.ganfpuLLM.ensureReady()) return;
     appendGrillMessage('system', 'Structuring requirements into Prompt Specification...');
+
+    // Snapshot authoritative user-authored evidence BEFORE adding the structuring instruction.
+    // The structuring instruction itself is an application-generated message and must never
+    // become eligible evidence for a requirement.
+    const sourceText = userTranscript();
     const instruction = `Based ONLY on the current Grill Me conversation, extract the final requirements into this JSON format.
 The user messages are the authoritative source. Assistant messages are questions only and MUST NOT be treated as facts or requirements.
 Do not infer unstated preferences, domain facts, technical specifications, recommendations, or solutions.
@@ -205,7 +210,6 @@ Output ONLY valid JSON, with every key present.
     try {
       const reply = (await window.ganfpuLLM.request(grillMessages, 0.2)).trim();
       const parsed = extractJson(reply);
-      const sourceText = userTranscript();
       const fields = [
         'f-role', 'f-task', 'f-context', 'f-constraint', 'f-format',
         'f-tone', 'f-length', 'f-reasoning', 'f-lang', 'f-hallucination',

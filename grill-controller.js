@@ -61,16 +61,6 @@ Rules:
     await respond();
   }
 
-  async function send() {
-    const input = el('grillInput');
-    const text = input?.value.trim();
-    if (!text) return;
-    appendGrillMessage('user', text);
-    grillMessages.push({ role: 'user', content: text });
-    input.value = '';
-    await respond();
-  }
-
   async function copyText(text) {
     if (!text) return false;
     if (navigator.clipboard && window.isSecureContext) {
@@ -82,8 +72,7 @@ Rules:
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.left = '-9999px';
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;width:1px;height:1px;opacity:0';
     document.body.appendChild(ta);
     ta.focus();
     ta.select();
@@ -161,7 +150,11 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
     sendButton.onclick = send;
     applyButton.onclick = apply;
     const resultCopy = el('normal-result-copy');
-    if (resultCopy) resultCopy.onclick = copyResult;
+    if (resultCopy) {
+      const freshCopy = resultCopy.cloneNode(true);
+      resultCopy.replaceWith(freshCopy);
+      freshCopy.onclick = copyResult;
+    }
     window.applyGrillMeResult = apply;
     return true;
   }

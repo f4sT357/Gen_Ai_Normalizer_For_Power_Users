@@ -162,7 +162,9 @@ header {
 .score-fill {
   height: 100%;
   border-radius: 3px;
-  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.4s;
+  transition:
+    width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.4s;
   width: 0%;
   background: var(--score-low);
 }
@@ -239,7 +241,7 @@ label {
   line-height: 1.6;
 }
 
-input[type="text"],
+input[type='text'],
 textarea,
 select {
   width: 100%;
@@ -250,12 +252,14 @@ select {
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 13px;
   padding: 10px 14px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   outline: none;
   resize: vertical;
 }
 
-input[type="text"]:focus,
+input[type='text']:focus,
 textarea:focus,
 select:focus {
   border-color: var(--accent);
@@ -512,7 +516,9 @@ select {
   justify-content: center;
   font-size: 16px;
   line-height: 1;
-  transition: color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    background 0.2s;
 }
 
 .template-del:hover {
@@ -582,15 +588,45 @@ select {
   z-index: 200;
 }
 .plain-copy-backdrop {
-  position: absolute; inset: 0; background: rgba(0,0,0,0.4);
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
 }
 .plain-copy-card {
-  position: relative; width: min(720px, 92%); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; z-index: 201; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  position: relative;
+  width: min(720px, 92%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  z-index: 201;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
-.plain-copy-title { font-weight:700; margin-bottom:8px; }
-.plain-copy-desc { font-size:12px; color:var(--text-dim); margin-bottom:8px; }
-.plain-copy-textarea { width:100%; height:160px; padding:10px; border-radius:8px; border:1px solid var(--border); resize:vertical; font-family: monospace; font-size:13px; }
-.plain-copy-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
+.plain-copy-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.plain-copy-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.plain-copy-textarea {
+  width: 100%;
+  height: 160px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  resize: vertical;
+  font-family: monospace;
+  font-size: 13px;
+}
+.plain-copy-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
 
 .field-filled::after {
   content: '✓';
@@ -601,7 +637,9 @@ select {
 
 .field-body {
   overflow: hidden;
-  transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
+  transition:
+    max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s;
 }
 
 .form-section.collapsed .field-body {
@@ -620,7 +658,9 @@ select {
   line-height: 1;
   padding: 2px 4px;
   border-radius: 4px;
-  transition: color 0.2s, transform 0.25s;
+  transition:
+    color 0.2s,
+    transform 0.25s;
   transform: rotate(0deg);
 }
 
@@ -693,7 +733,7 @@ select {
   color: var(--accent3);
 }
 
-.preview-area[contenteditable="true"] {
+.preview-area[contenteditable='true'] {
   border-color: rgba(106, 247, 200, 0.4);
   box-shadow: 0 0 0 3px rgba(106, 247, 200, 0.08);
   cursor: text;
@@ -751,7 +791,7 @@ select {
   margin-bottom: 24px;
 }
 
-.lm-row input[type="text"],
+.lm-row input[type='text'],
 .lm-row select {
   font-family: inherit;
   font-size: 13px;
@@ -790,7 +830,9 @@ select {
 /* Cyberpunk theme modal additions */
 .grill-card {
   border: 1px solid rgba(124, 106, 247, 0.5);
-  box-shadow: 0 0 30px rgba(124, 106, 247, 0.2), inset 0 0 15px rgba(124, 106, 247, 0.05);
+  box-shadow:
+    0 0 30px rgba(124, 106, 247, 0.2),
+    inset 0 0 15px rgba(124, 106, 247, 0.05);
 }
 
 .modal-header {
@@ -944,9 +986,13 @@ select {
 }
 
 @keyframes fadeIn {
-  to { opacity: 1; }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  to { transform: translateY(0); }
+  to {
+    transform: translateY(0);
+  }
 }

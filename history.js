@@ -58,7 +58,10 @@ function loadHistoryItem(item) {
 }
 
 function deleteHistoryItem(id) {
-  localStorage.setItem(GANFPU_HISTORY_KEY, JSON.stringify(getPromptHistory().filter((x) => x.id !== id)));
+  localStorage.setItem(
+    GANFPU_HISTORY_KEY,
+    JSON.stringify(getPromptHistory().filter((x) => x.id !== id))
+  );
   renderHistory();
 }
 
@@ -87,7 +90,9 @@ function renderHistory() {
     };
     const meta = document.createElement('small');
     meta.className = 'ganfpu-history-meta';
-    meta.textContent = new Date(item.createdAt).toLocaleString(document.documentElement.lang || 'ja');
+    meta.textContent = new Date(item.createdAt).toLocaleString(
+      document.documentElement.lang || 'ja'
+    );
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'ganfpu-history-delete';
@@ -117,8 +122,10 @@ function initHistoryUI() {
   anchor.appendChild(button);
   const modal = document.createElement('div');
   modal.id = 'ganfpu-history-modal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55)';
-  modal.innerHTML = '<div class="ganfpu-history-card"><div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)"><strong>Prompt History</strong><div><button type="button" class="btn btn-secondary" id="ganfpu-history-clear">Clear</button> <button type="button" class="btn btn-secondary" id="ganfpu-history-close">×</button></div></div><div class="ganfpu-history-body" id="ganfpu-history-list"><div id="ganfpu-history-empty" style="padding:28px 12px;text-align:center;color:var(--text-dim)">No saved prompts.</div></div></div>';
+  modal.style.cssText =
+    'position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55)';
+  modal.innerHTML =
+    '<div class="ganfpu-history-card"><div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)"><strong>Prompt History</strong><div><button type="button" class="btn btn-secondary" id="ganfpu-history-clear">Clear</button> <button type="button" class="btn btn-secondary" id="ganfpu-history-close">×</button></div></div><div class="ganfpu-history-body" id="ganfpu-history-list"><div id="ganfpu-history-empty" style="padding:28px 12px;text-align:center;color:var(--text-dim)">No saved prompts.</div></div></div>';
   document.body.appendChild(modal);
   document.getElementById('ganfpu-history-close').onclick = () => {
     modal.style.display = 'none';

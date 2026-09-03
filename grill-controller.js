@@ -14,15 +14,10 @@ Rules:
 7. Do not invent requirements or preferences.
 8. Ask only 1 or 2 short, targeted questions per turn.
 9. Ask only questions whose answers would materially change the final prompt.
-10. If the domain is specific, make the question domain-specific.
+10. If the domain is specific, make the question domain-specific without assuming that your domain knowledge is correct.
 11. Reply in the user's language.
 12. Stay in interview mode until the application explicitly asks you to structure the final requirements.`;
-    const user = `Current user intent:
----
-${intent}
----
-
-This is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted questions to resolve the most important ambiguity in this request. Do not answer the task.`;
+    const user = `Current user intent:\n---\n${intent}\n---\n\nThis is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted questions to resolve the most important ambiguity in this request. Do not answer the task.`;
     return [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: user },
@@ -38,6 +33,17 @@ This is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted 
   }
 
   async function requestInterviewResponse() {
+    if (window.ganfpuGrillEngine?.nextQuestion) {
+      const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages);
+      if (isInterviewQuestion(result.question)) return result.question;
+      grillMessages.push({
+        role: 'user',
+        content: `Your generated output was not a requirement question. Discard it and ask ONLY 1 or 2 concise requirement questions. Do not answer, recommend, explain, research, or solve the user's task.`,
+      });
+      const retry = await window.ganfpuGrillEngine.nextQuestion(grillMessages);
+      return retry.question;
+    }
+
     let reply = (await window.ganfpuLLM.request(grillMessages, 0.7)).trim();
     if (isInterviewQuestion(reply)) return reply;
 

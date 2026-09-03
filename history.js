@@ -110,18 +110,59 @@ function initHistoryUI() {
   button.type = 'button';
   button.className = 'btn btn-secondary';
   button.textContent = 'History';
-  button.onclick = () => { renderHistory(); document.getElementById('ganfpu-history-modal').style.display = 'flex'; };
+  button.onclick = () => {
+    renderHistory();
+    document.getElementById('ganfpu-history-modal').style.display = 'flex';
+  };
   anchor.appendChild(button);
   const modal = document.createElement('div');
   modal.id = 'ganfpu-history-modal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55)';
   modal.innerHTML = '<div class="ganfpu-history-card"><div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border)"><strong>Prompt History</strong><div><button type="button" class="btn btn-secondary" id="ganfpu-history-clear">Clear</button> <button type="button" class="btn btn-secondary" id="ganfpu-history-close">×</button></div></div><div class="ganfpu-history-body" id="ganfpu-history-list"><div id="ganfpu-history-empty" style="padding:28px 12px;text-align:center;color:var(--text-dim)">No saved prompts.</div></div></div>';
   document.body.appendChild(modal);
-  document.getElementById('ganfpu-history-close').onclick = () => { modal.style.display = 'none'; };
-  document.getElementById('ganfpu-history-clear').onclick = () => { if (confirm('Clear all prompt history?')) clearPromptHistory(); };
-  modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+  document.getElementById('ganfpu-history-close').onclick = () => {
+    modal.style.display = 'none';
+  };
+  document.getElementById('ganfpu-history-clear').onclick = () => {
+    if (confirm('Clear all prompt history?')) clearPromptHistory();
+  };
+  modal.onclick = (e) => {
+    if (e.target === modal) modal.style.display = 'none';
+  };
+}
+
+function wireHistoryActions() {
+  const wrap = (name, source) => {
+    const original = window[name];
+    if (typeof original !== 'function' || original._ganfpuHistoryWrapped) return;
+    const wrapped = function () {
+      const result = original.apply(this, arguments);
+      Promise.resolve(result).then(() => recordHistory(source));
+      return result;
+    };
+    wrapped._ganfpuHistoryWrapped = true;
+    window[name] = wrapped;
+  };
+  wrap('copyPrompt', 'copy');
+  wrap('downloadPrompt', 'download');
+  wrap('sharePrompt', 'share');
+  wrap('applyGrillMeResult', 'grill');
 }
 
 window.recordHistory = recordHistory;
 window.loadHistoryItem = loadHistoryItem;
 window.initHistoryUI = initHistoryUI;
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+      initHistoryUI();
+      wireHistoryActions();
+    }, 1000);
+  });
+} else {
+  setTimeout(() => {
+    initHistoryUI();
+    wireHistoryActions();
+  }, 1000);
+}

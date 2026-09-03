@@ -370,6 +370,17 @@
     await getProviderResponse();
   }
 
+  function showNormalResultFromPreview() {
+    const preview = el('preview');
+    const result = el('normal-result');
+    const wrap = el('normal-result-wrap');
+    if (!preview || !result || !wrap) return;
+    const text = preview.textContent.trim();
+    if (!text || preview.querySelector('.preview-placeholder')) return;
+    result.textContent = text;
+    wrap.hidden = false;
+  }
+
   async function applyProviderResult() {
     if (!ensureReady()) return;
     appendGrillMessage('system', 'Structuring requirements into Prompt Specification...');
@@ -410,6 +421,8 @@
         } else field.value = value;
       });
       update();
+      showNormalResultFromPreview();
+      if (typeof window.recordHistory === 'function') window.recordHistory('grill');
       closeGrillMe();
       const input = el('normal-intent');
       if (input) input.value = el('f-task')?.value || input.value;

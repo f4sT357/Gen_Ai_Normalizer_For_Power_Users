@@ -43,8 +43,9 @@
     const s = document.createElement('style');
     s.id = 'free-api-style';
     s.textContent = `
-            .free-api-box { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+            .free-api-box { margin-top: 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface2); }
             .free-api-row { display:flex; gap:8px; align-items:center; margin-top:8px; }
+            .free-api-row:first-child { margin-top:0; }
             .free-api-row select, .free-api-row input { flex:1; min-width:0; }
             #free-api-key { font-family: monospace; }
             .free-api-save-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:8px; }
@@ -59,8 +60,8 @@
   }
 
   function createUI() {
-    const hero = el('normal-mode')?.querySelector('.normal-hero');
-    if (!hero || el('free-api-box')) return;
+    const settings = el('normal-settings');
+    if (!settings || el('free-api-box')) return;
     const box = document.createElement('div');
     box.id = 'free-api-box';
     box.className = 'free-api-box';
@@ -90,7 +91,7 @@
             <div class="free-api-status" id="free-api-status"></div>
             <div class="free-api-note" id="free-api-note"></div>
         `;
-    hero.appendChild(box);
+    settings.appendChild(box);
 
     el('free-api-provider').value = provider;
     el('free-api-save-key').checked = saveKey;
@@ -169,6 +170,7 @@
     }
     updateStatus(true);
     renderProvider();
+    if (typeof window.ganfpuUpdateModelStatus === 'function') window.ganfpuUpdateModelStatus();
   }
 
   function clearSavedKey() {
@@ -178,6 +180,7 @@
     if (checkbox) checkbox.checked = false;
     updateStatus();
     renderProvider();
+    if (typeof window.ganfpuUpdateModelStatus === 'function') window.ganfpuUpdateModelStatus();
   }
 
   function updateStatus(saved = false) {

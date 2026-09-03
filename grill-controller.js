@@ -44,24 +44,13 @@ Rules:
     if (window.ganfpuGrillEngine?.nextQuestion) {
       const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages);
       if (isInterviewQuestion(result.question)) return result.question;
-      grillMessages.push({
-        role: 'user',
-        content: `Your generated output was not a valid requirement question. Discard it. Ask ONLY 1 or 2 concise requirement questions. Do not answer, recommend, explain, research, list products, or solve the user's task.`,
-      });
-      const retry = await window.ganfpuGrillEngine.nextQuestion(grillMessages);
-      if (isInterviewQuestion(retry.question)) return retry.question;
       throw new Error('The LLM did not return a valid interview question.');
     }
 
-    let reply = (await window.ganfpuLLM.request(grillMessages, 0.7)).trim();
-    if (isInterviewQuestion(reply)) return reply;
-
-    grillMessages.push({
-      role: 'user',
-      content: `Your previous response answered or attempted the task instead of conducting the interview. Discard that response. Ask ONLY 1 or 2 concise requirement questions. Do not answer, recommend, explain, research, or solve the user's task.`,
-    });
-    reply = (await window.ganfpuLLM.request(grillMessages, 0.3)).trim();
-    if (!isInterviewQuestion(reply)) throw new Error('The LLM did not return a valid interview question.');
+    const reply = (await window.ganfpuLLM.request(grillMessages, 0.7)).trim();
+    if (!isInterviewQuestion(reply)) {
+      throw new Error('The LLM did not return a valid interview question.');
+    }
     return reply;
   }
 

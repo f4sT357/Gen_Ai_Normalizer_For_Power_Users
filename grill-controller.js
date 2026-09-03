@@ -145,9 +145,12 @@ Rules:
     else showToast('Copy failed. Please select and copy the text manually.');
   }
 
+  function userMessages() {
+    return grillMessages.filter((message) => message.role === 'user');
+  }
+
   function userTranscript() {
-    return grillMessages
-      .filter((message) => message.role === 'user')
+    return userMessages()
       .map((message) => message.content)
       .join('\n');
   }
@@ -168,11 +171,27 @@ Rules:
     return String(value || '').replace(/\s+/g, ' ').trim();
   }
 
-  function isSourceBacked(value, source) {
+  function sourceExistsInUserMessage(source) {
+    const normalizedSource = normalizeSource(source);
+    if (!normalizedSource) return false;
+    return userMessages().some((message) =>
+      normalizeSource(message.content).includes(normalizedSource)
+    );
+  }
+
+  function sourceBackedValue(value, source) {
     const normalizedValue = normalizeSource(value);
     const normalizedSource = normalizeSource(source);
     if (!normalizedValue || !normalizedSource) return false;
+    if (!sourceExistsInUserMessage(source)) return false;
     return normalizedSource.includes(normalizedValue);
+  }
+
+  function valueForSourceCheck(id, value) {
+    if (id === 'f-hallucination') {
+      return normalizeSource(value).replace(/^カスタム:\s*/i, '');
+    }
+    return normalizeSource(value);
   }
 
   async function apply() {
@@ -220,6 +239,7 @@ Output ONLY valid JSON, with every key present.
         const entry = parsed[id] && typeof parsed[id] === 'object' ? parsed[id] : {};
         const value = typeof entry.value === 'string' ? entry.value.trim() : '';
         const source = typeof entry.source === 'string' ? entry.source.trim() : '';
+        const sourceValue = valueForSourceCheck(id, value);
 
         // The hallucination policy has an application-defined default. It does not need
         // user evidence, unlike every other extracted requirement.
@@ -227,7 +247,7 @@ Output ONLY valid JSON, with every key present.
           id === 'f-hallucination' && value === '指定なし' && !source;
 
         if ((!value || (!source && !isDefaultHallucinationPolicy)) ||
-            (source && !isSourceBacked(value, source))) {
+            (source && !sourceBackedValue(sourceValue, source))) {
           field.value = '';
           const custom = el(id + '-custom');
           if (custom) {

@@ -29,6 +29,14 @@
       .join('\n');
   }
 
+  function assistantQuestions(messages) {
+    return messages
+      .filter((message) => message.role === 'assistant' && !message.synthetic)
+      .map((message) => String(message.content || '').trim())
+      .filter(isInterviewQuestionLike)
+      .join('\n');
+  }
+
   function authoritativeUserMessages(messages) {
     return messages
       .filter((message) => message.role === 'user' && !message.synthetic)
@@ -115,6 +123,19 @@
     return unique([...jp, ...en]);
   }
 
+  function isInterviewQuestionLike(text) {
+    const normalized = String(text || '').trim();
+    if (!normalized) return false;
+    if (!/[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/.test(normalized)) return false;
+    const answerLike = [
+      /(^|\n)\s*[-*•]\s+/,
+      /(^|\n)\s*\d+[.)]\s+/,
+      /おすすめ|推薦|候補|以下の|検討してみ|～がおすすめ|最適です|選ぶとよい/i,
+      /\bhttps?:\/\//i,
+    ];
+    return !answerLike.some((pattern) => pattern.test(normalized));
+  }
+
   function isDuplicateQuestion(question, messages) {
     const fingerprint = questionFingerprint(question);
     if (!fingerprint) return true;
@@ -136,19 +157,6 @@
       const ratio = overlap / Math.min(currentTokens.size, previousTokens.size || 1);
       return ratio >= 0.8;
     });
-  }
-
-  function isInterviewQuestionLike(text) {
-    const normalized = String(text || '').trim();
-    if (!normalized) return false;
-    if (!/[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/.test(normalized)) return false;
-    const answerLike = [
-      /(^|\n)\s*[-*•]\s+/,
-      /(^|\n)\s*\d+[.)]\s+/,
-      /おすすめ|推薦|候補|以下の|検討してみ|～がおすすめ|最適です|選ぶとよい/i,
-      /\bhttps?:\/\//i,
-    ];
-    return !answerLike.some((pattern) => pattern.test(normalized));
   }
 
   function looksKnowledgeSensitive(term) {
@@ -184,16 +192,19 @@
     const userText = userTranscript(messages).toLowerCase();
     const explicit = unique(candidate?.terms || []).filter(looksKnowledgeSensitive);
     const mechanical = mechanicallyDetectedTerms(source);
-    const candidates = unique([...explicit, ...mechanical]);
-    return candidates
+    return unique([...explicit, ...mechanical])
       .filter((term) => !userText.includes(term.toLowerCase()))
       .slice(0, MAX_TERMS);
   }
 
   async function proposeQuestion(messages) {
+    const userOnly = userTranscript(messages);
+    const previousQuestions = assistantQuestions(messages);
     const system = `You are the requirement-analysis stage of GANFPU.
 Treat all LLM knowledge as potentially wrong.
 Do not answer the user's task and do not recommend anything.
+Your requirement analysis MUST be derived from USER MESSAGES only.
+Assistant messages are not facts, preferences, requirements, or evidence. They are supplied separately only so you can avoid repeating an already-asked question.
 Propose the single best next requirement question based ONLY on requirements explicitly present in the user messages.
 Do not invent a missing requirement category merely because it is common in your domain knowledge.
 A question is valid only when the user has indicated, directly or indirectly, that the corresponding dimension matters to the task.
@@ -203,7 +214,7 @@ If there is no user-grounded requirement that needs clarification, return an emp
 If the proposed question depends on a technical term, proper noun, model number, standard, or domain-specific premise that may need verification, list that exact term in "terms".
 Do not list ordinary words merely because they are domain-related.
 Do not assert that any listed term is correct.
-Never ask for information already supplied in the transcript.
+Never ask for information already supplied by the user.
 Return ONLY JSON:
 {
   "question":"",
@@ -212,7 +223,7 @@ Return ONLY JSON:
   "knowledge_claims":[],
   "terms":[]
 }`;
-    const user = `Current Grill Me transcript:\n---\n${transcript(messages)}\n---\nReturn one concise requirement question only if it is grounded in something the user has actually indicated. For any non-empty question, grounding_quote MUST be copied verbatim from one actual USER message. Any terminology or domain premise that is not directly supplied by the user must be treated as untrusted and listed in "terms" if it is necessary to phrase the candidate.`;
+    const user = `AUTHORITATIVE USER MESSAGES:\n---\n${userOnly}\n---\n\nPREVIOUS ASSISTANT QUESTIONS (NOT FACTS; use only to avoid repetition):\n---\n${previousQuestions}\n---\n\nReturn one concise requirement question only if it is grounded in something the user has actually indicated. For any non-empty question, grounding_quote MUST be copied verbatim from one actual USER message. Any terminology or domain premise that is not directly supplied by the user must be treated as untrusted and listed in "terms" if it is necessary to phrase the candidate.`;
     const reply = await window.ganfpuLLM.request([
       { role: 'system', content: system },
       { role: 'user', content: user },

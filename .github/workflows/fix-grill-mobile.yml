@@ -13,28 +13,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch Grill Me mobile behavior
+      - name: Patch prompt session persistence
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          free = Path('free-api.js')
-          text = free.read_text()
-          old = '''      if (input) {\n        input.disabled = false;\n        input.focus();\n      }'''
-          new = '''      if (input) {\n        input.disabled = false;\n      }\n      requestAnimationFrame(() => {\n        const log = el('grillChatLog');\n        if (log) log.scrollTop = log.scrollHeight;\n      });'''
+          app = Path('app.js')
+          text = app.read_text()
+          old = "const AUTOSAVE_KEY = 'pb_autosave';"
           if old not in text:
-              raise SystemExit('free-api.js target block not found')
-          free.write_text(text.replace(old, new, 1))
+              raise SystemExit('AUTOSAVE_KEY declaration not found')
 
-          css = Path('style.css')
-          text = css.read_text()
-          marker = '/* Grill Me mobile / iOS layout */'
-          if marker not in text:
-              text += '''\n\n/* Grill Me mobile / iOS layout */\n.modal-overlay {\n  align-items: center;\n  padding: 12px;\n}\n\n.grill-card {\n  width: min(720px, 100%);\n  max-height: calc(100vh - 24px);\n  max-height: calc(100dvh - 24px);\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n}\n\n.grill-body {\n  min-height: 0;\n  display: flex;\n  flex-direction: column;\n  flex: 1 1 auto;\n  overflow: hidden;\n}\n\n.grill-chat-log {\n  min-height: 0;\n  flex: 1 1 auto;\n  overflow-y: auto;\n  overscroll-behavior: contain;\n  -webkit-overflow-scrolling: touch;\n}\n\n.grill-input-row,\n.grill-footer {\n  flex: 0 0 auto;\n}\n\n@media (max-width: 700px) {\n  .modal-overlay {\n    align-items: flex-start;\n    padding: 8px;\n  }\n\n  .grill-card {\n    max-height: calc(100vh - 16px);\n    max-height: calc(100dvh - 16px);\n  }\n}\n'''
-              css.write_text(text)
+          old_set = "localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));"
+          new_set = "sessionStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));"
+          if old_set not in text:
+              raise SystemExit('autosave write target not found')
+          text = text.replace(old_set, new_set, 1)
+
+          old_get = "const saved = JSON.parse(localStorage.getItem(AUTOSAVE_KEY));"
+          new_get = "localStorage.removeItem(AUTOSAVE_KEY);\n    const saved = JSON.parse(sessionStorage.getItem(AUTOSAVE_KEY));"
+          if old_get not in text:
+              raise SystemExit('autosave restore target not found')
+          text = text.replace(old_get, new_get, 1)
+          app.write_text(text)
           PY
 
-      - name: Commit Grill Me fix
+      - name: Commit prompt session fix
         run: |
           if git diff --quiet; then
             echo "No changes needed."
@@ -42,6 +46,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add free-api.js style.css
-          git commit -m "fix: stabilize Grill Me mobile input layout [skip ci]"
+          git add app.js
+          git commit -m "fix: reset prompt autosave between sessions [skip ci]"
           git push

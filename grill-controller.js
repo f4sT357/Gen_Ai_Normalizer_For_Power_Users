@@ -171,19 +171,19 @@ Rules:
     return String(value || '').replace(/\s+/g, ' ').trim();
   }
 
-  function sourceExistsInUserMessage(source) {
+  function sourceExistsInUserMessage(source, authoritativeUserMessages) {
     const normalizedSource = normalizeSource(source);
     if (!normalizedSource) return false;
-    return userMessages().some((message) =>
+    return authoritativeUserMessages.some((message) =>
       normalizeSource(message.content).includes(normalizedSource)
     );
   }
 
-  function sourceBackedValue(value, source) {
+  function sourceBackedValue(value, source, authoritativeUserMessages) {
     const normalizedValue = normalizeSource(value);
     const normalizedSource = normalizeSource(source);
     if (!normalizedValue || !normalizedSource) return false;
-    if (!sourceExistsInUserMessage(source)) return false;
+    if (!sourceExistsInUserMessage(source, authoritativeUserMessages)) return false;
     return normalizedSource.includes(normalizedValue);
   }
 
@@ -201,7 +201,7 @@ Rules:
     // Snapshot authoritative user-authored evidence BEFORE adding the structuring instruction.
     // The structuring instruction itself is an application-generated message and must never
     // become eligible evidence for a requirement.
-    const sourceText = userTranscript();
+    const authoritativeUserMessages = userMessages().map((message) => ({ ...message }));
     const instruction = `Based ONLY on the current Grill Me conversation, extract the final requirements into this JSON format.
 The user messages are the authoritative source. Assistant messages are questions only and MUST NOT be treated as facts or requirements.
 Do not infer unstated preferences, domain facts, technical specifications, recommendations, or solutions.
@@ -247,7 +247,7 @@ Output ONLY valid JSON, with every key present.
           id === 'f-hallucination' && value === '指定なし' && !source;
 
         if ((!value || (!source && !isDefaultHallucinationPolicy)) ||
-            (source && !sourceBackedValue(sourceValue, source))) {
+            (source && !sourceBackedValue(sourceValue, source, authoritativeUserMessages))) {
           field.value = '';
           const custom = el(id + '-custom');
           if (custom) {

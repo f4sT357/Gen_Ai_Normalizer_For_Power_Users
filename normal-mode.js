@@ -197,7 +197,8 @@
     const c = copy();
     if (window.ganfpuLLM && typeof window.ganfpuLLM.getProviderLabel === 'function') {
       const provider = window.ganfpuLLM.getProviderLabel();
-      const model = typeof window.ganfpuLLM.getModel === 'function' ? window.ganfpuLLM.getModel() : '';
+      const model =
+        typeof window.ganfpuLLM.getModel === 'function' ? window.ganfpuLLM.getModel() : '';
       const ready = !!model;
       el.textContent = ready ? `${provider} · ${model}` : `${provider} · ${c.noModel}`;
       el.classList.toggle('ready', ready);
@@ -271,15 +272,12 @@
 
   function startNormalGrill() {
     const input = document.getElementById('normal-intent');
-    const task = document.getElementById('f-task');
-    if (!input || !task) return;
+    if (!input) return;
     const intent = input.value.trim();
     if (!intent) {
       input.focus();
       return;
     }
-    task.value = intent;
-    update();
     if (typeof window.ganfpuStartGrill === 'function') window.ganfpuStartGrill();
     else showToast('Grill Me is still loading. Try again in a moment.');
   }
@@ -313,10 +311,6 @@
     if (mainGrid) mainGrid.style.display = 'none';
     if (location.hash.includes('data=')) togglePowerMode();
     setTimeout(() => {
-      const input = document.getElementById('normal-intent');
-      const task = document.getElementById('f-task');
-      if (input && task && !input.value.trim() && task.value.trim())
-        input.value = task.value.trim();
       updateModelStatus();
     }, 350);
   }

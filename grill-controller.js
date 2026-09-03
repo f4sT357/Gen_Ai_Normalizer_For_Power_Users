@@ -1,5 +1,6 @@
 (() => {
   const el = (id) => document.getElementById(id);
+  let grillMessages = [];
 
   function buildInitialConversation(intent) {
     const systemPrompt = `You are an expert prompt engineer operating in the requirements-interview phase of a prompt normalization workflow.
@@ -31,7 +32,9 @@ This is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted 
   function isInterviewQuestion(text) {
     const normalized = (text || '').trim();
     if (!normalized) return false;
-    return /[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/.test(normalized);
+    return /[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/.test(
+      normalized
+    );
   }
 
   async function requestInterviewResponse() {
@@ -47,7 +50,8 @@ This is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted 
   }
 
   async function respond() {
-    const send = el('btn-grill-send'), input = el('grillInput');
+    const send = el('btn-grill-send'),
+      input = el('grillInput');
     if (send) send.disabled = true;
     if (input) input.disabled = true;
     appendGrillMessage('system', 'Thinking...');
@@ -93,7 +97,10 @@ This is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted 
     el('grillChatLog').innerHTML = '';
     el('grillInput').value = '';
     grillMessages = buildInitialConversation(intent);
-    appendGrillMessage('system', `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`);
+    appendGrillMessage(
+      'system',
+      `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`
+    );
     await respond();
   }
 
@@ -122,7 +129,8 @@ This is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted 
   }
 
   async function copyResult() {
-    const result = el('normal-result'), preview = el('preview');
+    const result = el('normal-result'),
+      preview = el('preview');
     const text = result?.textContent.trim() || preview?.textContent.trim() || '';
     if (!text || preview?.querySelector('.preview-placeholder')) {
       showToast('Nothing to copy.');
@@ -146,8 +154,16 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
       const match = reply.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(match ? match[0] : reply);
       [
-        'f-role', 'f-task', 'f-context', 'f-constraint', 'f-format',
-        'f-tone', 'f-length', 'f-reasoning', 'f-lang', 'f-hallucination',
+        'f-role',
+        'f-task',
+        'f-context',
+        'f-constraint',
+        'f-format',
+        'f-tone',
+        'f-length',
+        'f-reasoning',
+        'f-lang',
+        'f-hallucination',
       ].forEach((id) => {
         const field = el(id);
         if (!field) return;
@@ -165,14 +181,21 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
         } else field.value = value;
       });
       update();
-      const preview = el('preview'), result = el('normal-result'), wrap = el('normal-result-wrap');
-      if (preview && result && wrap && preview.textContent.trim() && !preview.querySelector('.preview-placeholder')) {
+      const preview = el('preview'),
+        result = el('normal-result'),
+        wrap = el('normal-result-wrap');
+      if (
+        preview &&
+        result &&
+        wrap &&
+        preview.textContent.trim() &&
+        !preview.querySelector('.preview-placeholder')
+      ) {
         result.textContent = preview.textContent.trim();
         wrap.hidden = false;
       }
       if (typeof window.recordHistory === 'function') window.recordHistory('grill');
       closeGrillMe();
-      el('normal-intent').value = el('f-task')?.value || el('normal-intent').value;
       showToast('Prompt Specification updated from interview.');
     } catch (e) {
       console.error(e);
@@ -181,7 +204,8 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
   }
 
   function bind() {
-    const sendButton = el('btn-grill-send'), applyButton = el('btn-grill-apply');
+    const sendButton = el('btn-grill-send'),
+      applyButton = el('btn-grill-apply');
     if (!sendButton || !applyButton || !window.ganfpuLLM) return false;
 
     const freshSend = sendButton.cloneNode(true);

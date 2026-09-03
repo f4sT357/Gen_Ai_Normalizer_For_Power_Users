@@ -330,7 +330,7 @@
       <div class="modal-card grill-card">
         <div class="modal-header">
           <div class="modal-title" id="grill-title-text">🔥 Grill Me</div>
-          <button class="modal-close-btn" onclick="closeGrillMe()">×</button>
+          <button class="modal-close-btn">×</button>
         </div>
         <div class="modal-body grill-body">
           <div class="grill-chat-log" id="grillChatLog"></div>
@@ -339,7 +339,6 @@
             ><button
               class="btn btn-primary"
               id="btn-grill-send"
-              onclick="sendGrillMeResponse()"
               style="height: auto; align-self: stretch"
             >
               Send
@@ -347,12 +346,8 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button
-            class="btn btn-success"
-            id="btn-grill-apply"
-            onclick="applyGrillMeResult()"
-          ></button
-          ><button class="btn btn-secondary" id="btn-grill-close" onclick="closeGrillMe()"></button>
+          <button class="btn btn-success" id="btn-grill-apply"></button
+          ><button class="btn btn-secondary" id="btn-grill-close"></button>
         </div>
       </div>
     </div>

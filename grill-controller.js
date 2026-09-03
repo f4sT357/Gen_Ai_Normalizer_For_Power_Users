@@ -57,10 +57,7 @@ Rules:
     el('grillChatLog').innerHTML = '';
     el('grillInput').value = '';
     grillMessages = buildInitialConversation(intent);
-    appendGrillMessage(
-      'system',
-      `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`
-    );
+    appendGrillMessage('system', `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`);
     await respond();
   }
 
@@ -86,7 +83,7 @@ Rules:
     ta.value = text;
     ta.setAttribute('readonly', '');
     ta.style.position = 'fixed';
-    ta.style.opacity = '0';
+    ta.style.left = '-9999px';
     document.body.appendChild(ta);
     ta.focus();
     ta.select();
@@ -124,16 +121,8 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
       const match = reply.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(match ? match[0] : reply);
       [
-        'f-role',
-        'f-task',
-        'f-context',
-        'f-constraint',
-        'f-format',
-        'f-tone',
-        'f-length',
-        'f-reasoning',
-        'f-lang',
-        'f-hallucination',
+        'f-role', 'f-task', 'f-context', 'f-constraint', 'f-format',
+        'f-tone', 'f-length', 'f-reasoning', 'f-lang', 'f-hallucination',
       ].forEach((id) => {
         const field = el(id);
         if (!field) return;

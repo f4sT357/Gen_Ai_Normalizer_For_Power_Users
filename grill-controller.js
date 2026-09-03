@@ -27,9 +27,17 @@ Rules:
   function isInterviewQuestion(text) {
     const normalized = (text || '').trim();
     if (!normalized) return false;
-    return /[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/.test(
-      normalized
-    );
+    if (!/[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/.test(normalized)) return false;
+
+    const answerLike = [
+      /(^|\n)\s*[-*•]\s+/,
+      /(^|\n)\s*\d+[.)]\s+/,
+      /おすすめ|推薦|候補|以下の|検討してみ|～がおすすめ|最適です|選ぶとよい/i,
+      /\bhttps?:\/\//i,
+    ];
+    if (answerLike.some((pattern) => pattern.test(normalized))) return false;
+
+    return true;
   }
 
   async function requestInterviewResponse() {
@@ -38,10 +46,11 @@ Rules:
       if (isInterviewQuestion(result.question)) return result.question;
       grillMessages.push({
         role: 'user',
-        content: `Your generated output was not a requirement question. Discard it and ask ONLY 1 or 2 concise requirement questions. Do not answer, recommend, explain, research, or solve the user's task.`,
+        content: `Your generated output was not a valid requirement question. Discard it. Ask ONLY 1 or 2 concise requirement questions. Do not answer, recommend, explain, research, list products, or solve the user's task.`,
       });
       const retry = await window.ganfpuGrillEngine.nextQuestion(grillMessages);
-      return retry.question;
+      if (isInterviewQuestion(retry.question)) return retry.question;
+      throw new Error('The LLM did not return a valid interview question.');
     }
 
     let reply = (await window.ganfpuLLM.request(grillMessages, 0.7)).trim();
@@ -52,6 +61,7 @@ Rules:
       content: `Your previous response answered or attempted the task instead of conducting the interview. Discard that response. Ask ONLY 1 or 2 concise requirement questions. Do not answer, recommend, explain, research, or solve the user's task.`,
     });
     reply = (await window.ganfpuLLM.request(grillMessages, 0.3)).trim();
+    if (!isInterviewQuestion(reply)) throw new Error('The LLM did not return a valid interview question.');
     return reply;
   }
 

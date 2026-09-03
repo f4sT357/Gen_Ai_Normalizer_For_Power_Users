@@ -39,17 +39,19 @@
       .join('\n');
   }
 
+  function normalizeQuote(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
   function exactUserQuoteExists(quote, messages) {
-    const normalized = String(quote || '').replace(/\s+/g, ' ').trim();
+    const normalized = normalizeQuote(quote);
     if (!normalized) return false;
-    return authoritativeUsers(messages).some((message) =>
-      message.replace(/\s+/g, ' ').includes(normalized)
-    );
+    return authoritativeUsers(messages).some((message) => normalizeQuote(message).includes(normalized));
   }
 
   function exactUserQuoteContains(quote, needle, messages) {
-    const q = String(quote || '').replace(/\s+/g, ' ').trim();
-    const n = String(needle || '').replace(/\s+/g, ' ').trim();
+    const q = normalizeQuote(quote);
+    const n = normalizeQuote(needle);
     if (!q || !n || !q.toLocaleLowerCase().includes(n.toLocaleLowerCase())) return false;
     return exactUserQuoteExists(q, messages);
   }
@@ -193,7 +195,7 @@ For every non-empty candidate, return:
 - dimension: a short name for the requirement dimension
 - dimension_anchor: an exact contiguous phrase from the USER message that names or clearly establishes that dimension
 - grounding_quote: an exact contiguous USER quote establishing why clarification is needed
-- missing_requirement: the unresolved detail within that user-grounded dimension
+- missing_requirement: the unresolved detail within that user-grounded dimension; this does NOT need to appear verbatim in the user quote
 - question: one concise question
 If the dimension itself is not grounded in a user message, return an empty question.
 Do not use assistant wording as dimension_anchor or grounding_quote.
@@ -271,12 +273,11 @@ If provenance is invalid, output an empty string.`;
   }
 
   function validateCandidate(candidate, messages) {
-    if (!candidate.question) return false;
-    if (!candidate.dimension) return false;
-    if (!candidate.missing_requirement) return false;
-    if (!exactUserQuoteContains(candidate.dimension_anchor, candidate.dimension_anchor, messages)) return false;
-    if (!exactUserQuoteContains(candidate.grounding_quote, candidate.missing_requirement, messages)) return false;
-    if (!exactUserQuoteExists(candidate.grounding_quote, messages)) return false;
+    if (!candidate.question || !candidate.dimension || !candidate.missing_requirement) return false;
+    if (!candidate.dimension_anchor || !exactUserQuoteExists(candidate.dimension_anchor, messages)) return false;
+    if (!candidate.grounding_quote || !exactUserQuoteExists(candidate.grounding_quote, messages)) return false;
+    // The grounding quote must belong to the same user-grounded dimension.
+    if (!exactUserQuoteContains(candidate.grounding_quote, candidate.dimension_anchor, messages)) return false;
     return true;
   }
 

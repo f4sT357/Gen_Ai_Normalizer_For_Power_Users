@@ -17,10 +17,9 @@ Rules:
 10. If the domain is specific, make the question domain-specific without assuming that your domain knowledge is correct.
 11. Reply in the user's language.
 12. Stay in interview mode until the application explicitly asks you to structure the final requirements.`;
-    const user = `Current user intent:\n---\n${intent}\n---\n\nThis is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted questions to resolve the most important ambiguity in this request. Do not answer the task.`;
     return [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: user },
+      { role: 'user', content: intent },
     ];
   }
 
@@ -41,17 +40,12 @@ Rules:
   }
 
   async function requestInterviewResponse() {
-    if (window.ganfpuGrillEngine?.nextQuestion) {
-      const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages);
-      if (isInterviewQuestion(result.question)) return result.question;
-      throw new Error('The LLM did not return a valid interview question.');
+    if (!window.ganfpuGrillEngine?.nextQuestion) {
+      throw new Error('The Grill Engine is unavailable. Interview safety checks cannot be bypassed.');
     }
-
-    const reply = (await window.ganfpuLLM.request(grillMessages, 0.7)).trim();
-    if (!isInterviewQuestion(reply)) {
-      throw new Error('The LLM did not return a valid interview question.');
-    }
-    return reply;
+    const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages);
+    if (isInterviewQuestion(result.question)) return result.question;
+    throw new Error('The LLM did not return a valid interview question.');
   }
 
   async function respond() {
@@ -146,7 +140,7 @@ Rules:
   }
 
   function userMessages() {
-    return grillMessages.filter((message) => message.role === 'user');
+    return grillMessages.filter((message) => message.role === 'user' && !message.synthetic);
   }
 
   function userTranscript() {
@@ -198,9 +192,8 @@ Rules:
     if (!window.ganfpuLLM || !window.ganfpuLLM.ensureReady()) return;
     appendGrillMessage('system', 'Structuring requirements into Prompt Specification...');
 
-    // Snapshot authoritative user-authored evidence BEFORE adding the structuring instruction.
-    // The structuring instruction itself is an application-generated message and must never
-    // become eligible evidence for a requirement.
+    // Snapshot actual user-authored turns before adding the application-generated
+    // structuring instruction. Only this snapshot is authoritative evidence.
     const authoritativeUserMessages = userMessages().map((message) => ({ ...message }));
     const instruction = `Based ONLY on the current Grill Me conversation, extract the final requirements into this JSON format.
 The user messages are the authoritative source. Assistant messages are questions only and MUST NOT be treated as facts or requirements.
@@ -225,7 +218,7 @@ Output ONLY valid JSON, with every key present.
   "f-lang":{"value":"","source":""},
   "f-hallucination":{"value":"指定なし","source":""}
 }`;
-    grillMessages.push({ role: 'user', content: instruction });
+    grillMessages.push({ role: 'user', content: instruction, synthetic: true });
     try {
       const reply = (await window.ganfpuLLM.request(grillMessages, 0.2)).trim();
       const parsed = extractJson(reply);

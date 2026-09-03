@@ -270,15 +270,10 @@
       input.focus();
       return;
     }
-    if (typeof selectedLMModel === 'undefined' || !selectedLMModel) {
-      togglePowerMode();
-      const status = document.getElementById('normal-model-status');
-      if (status) status.textContent = copy().needModel;
-      return;
-    }
     task.value = intent;
     update();
-    startGrillMe();
+    if (typeof window.ganfpuStartGrill === 'function') window.ganfpuStartGrill();
+    else showToast('Grill Me is still loading. Try again in a moment.');
   }
 
   function wrapLanguageSwitch() {
@@ -294,73 +289,9 @@
   }
 
   function overrideApply() {
-    window.applyGrillMeResult = async function () {
-      const endpointInput = document.getElementById('lm-endpoint');
-      if (!endpointInput || !selectedLMModel) return;
-      const endpoint = endpointInput.value.trim();
-      const chatLog = document.getElementById('grillChatLog');
-      appendGrillMessage('system', 'Structuring requirements into Prompt Specification...');
-      const finalInstruct = `Based on our conversation, structure the final requirements into this JSON format. Output ONLY valid JSON, with every key present. Do not invent requirements: if the user never specified a value and it is not necessary to fulfill the task, use an empty string. Preserve concrete user requirements.\n{\n  "f-role": "", "f-task": "", "f-context": "", "f-constraint": "", "f-format": "", "f-tone": "", "f-length": "", "f-reasoning": "", "f-lang": "", "f-hallucination": ""\n}`;
-      grillMessages.push({ role: 'user', content: finalInstruct });
-      try {
-        const res = await fetch(`${endpoint}/chat/completions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: selectedLMModel,
-            messages: grillMessages,
-            temperature: 0.2,
-          }),
-        });
-        if (!res.ok) throw new Error('Failed to get structured JSON');
-        const data = await res.json();
-        const reply = data.choices[0].message.content.trim();
-        if (chatLog?.lastChild?.textContent.includes('Structuring requirements'))
-          chatLog.removeChild(chatLog.lastChild);
-        const match = reply.match(/\{[\s\S]*\}/);
-        const parsed = JSON.parse(match ? match[0] : reply);
-        const ids = [
-          'f-role',
-          'f-task',
-          'f-context',
-          'f-constraint',
-          'f-format',
-          'f-tone',
-          'f-length',
-          'f-reasoning',
-          'f-lang',
-          'f-hallucination',
-        ];
-        ids.forEach((id) => {
-          const val = typeof parsed[id] === 'string' ? parsed[id] : '';
-          const field = document.getElementById(id);
-          if (!field) return;
-          if (field.tagName === 'SELECT') {
-            const has = Array.from(field.options).some((o) => o.value === val);
-            if (has) field.value = val;
-            else if (val) {
-              field.value = 'custom';
-              const custom = document.getElementById(id + '-custom');
-              if (custom) {
-                custom.value = val;
-                custom.style.display = 'block';
-              }
-            } else field.value = '';
-          } else field.value = val;
-        });
-        update();
-        showNormalResult();
-        if (typeof window.recordHistory === 'function') window.recordHistory('grill');
-        closeGrillMe();
-        const input = document.getElementById('normal-intent');
-        if (input) input.value = document.getElementById('f-task')?.value || input.value;
-        showToast('Prompt Specification updated from interview.');
-      } catch (err) {
-        console.error(err);
-        if (chatLog?.lastChild?.textContent.includes('Structuring requirements'))
-          chatLog.removeChild(chatLog.lastChild);
-        appendGrillMessage('system', 'Failed to map the interview to structured fields.');
-      }
+    window.applyGrillMeResult = function () {
+      if (typeof window.ganfpuApplyGrillResult === 'function')
+        return window.ganfpuApplyGrillResult();
     };
   }
 

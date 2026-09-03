@@ -434,26 +434,13 @@
   }
 
   function replaceNormalHandlers() {
-    const start = el('normal-start');
-    if (start) {
-      const replacement = start.cloneNode(true);
-      start.replaceWith(replacement);
-      replacement.addEventListener('click', startProviderGrill);
-    }
-    const send = el('btn-grill-send');
-    if (send) {
-      send.onclick = sendProviderResponse;
-      send.addEventListener('click', (e) => {
-        e.stopImmediatePropagation();
-      });
-    }
-    const apply = el('btn-grill-apply');
-    if (apply) apply.onclick = applyProviderResult;
+    // Grill Me UI events are owned by grill-controller.js.
   }
 
   function init() {
     injectStyles();
     createUI();
+    exposeLLMBridge();
     replaceNormalHandlers();
     // Keep the provider controls visible in Normal Mode; Power Mode remains LM Studio-native.
     window.ganfpuFreeApi = { startProviderGrill, sendProviderResponse, applyProviderResult };

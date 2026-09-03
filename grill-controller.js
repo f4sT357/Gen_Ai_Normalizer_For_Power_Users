@@ -11,12 +11,7 @@ Rules:
 5. Ask only 1 or 2 short, targeted questions per turn.
 6. If the domain is specific, make the question domain-specific.
 7. Reply in the user's language.`;
-    const user = `Current user intent:
----
-${intent}
----
-
-Ask me 1 or 2 targeted questions to resolve the most important ambiguity in this request.`;
+    const user = `Current user intent:\n---\n${intent}\n---\n\nAsk me 1 or 2 targeted questions to resolve the most important ambiguity in this request.`;
     return [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: user },
@@ -24,8 +19,7 @@ Ask me 1 or 2 targeted questions to resolve the most important ambiguity in this
   }
 
   async function respond() {
-    const send = el('btn-grill-send'),
-      input = el('grillInput');
+    const send = el('btn-grill-send'), input = el('grillInput');
     if (send) send.disabled = true;
     if (input) input.disabled = true;
     appendGrillMessage('system', 'Thinking...');
@@ -51,16 +45,12 @@ Ask me 1 or 2 targeted questions to resolve the most important ambiguity in this
 
   async function start() {
     if (!window.ganfpuLLM || !window.ganfpuLLM.ensureReady()) return;
-    const input = el('normal-intent'),
-      task = el('f-task');
+    const input = el('normal-intent'), task = el('f-task');
     const intent = input?.value.trim();
     if (!intent || !task) {
       input?.focus();
       return;
     }
-
-    // Start a completely fresh Normal Mode session. Existing Power Mode fields
-    // and Preview content must never become implicit context for this request.
     task.value = intent;
     update();
     el('grillModal').style.display = 'flex';
@@ -84,12 +74,49 @@ Ask me 1 or 2 targeted questions to resolve the most important ambiguity in this
     await respond();
   }
 
+  async function copyText(text) {
+    if (!text) return false;
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (e) {}
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    let copied = false;
+    try {
+      copied = document.execCommand('copy');
+    } catch (e) {}
+    ta.remove();
+    return copied;
+  }
+
+  async function copyResult() {
+    const result = el('normal-result'), preview = el('preview');
+    const text = result?.textContent.trim() || preview?.textContent.trim() || '';
+    if (!text || preview?.querySelector('.preview-placeholder')) {
+      showToast('Nothing to copy.');
+      return;
+    }
+    if (await copyText(text)) showToast('Copied to clipboard.');
+    else showToast('Copy failed. Please select and copy the text manually.');
+  }
+
   async function apply() {
     if (!window.ganfpuLLM || !window.ganfpuLLM.ensureReady()) return;
     appendGrillMessage('system', 'Structuring requirements into Prompt Specification...');
     const instruction = `Based ONLY on the current Grill Me conversation, structure the final requirements into this JSON format. Existing form fields and Preview content are not context and must be ignored. Output ONLY valid JSON, with every key present. Do not invent requirements.
+For f-hallucination, use ONLY one of these policy values: "指定なし", "不確実な情報を明示", "事実確認を要求", "根拠・出典を要求", "不明な場合は回答しない". If the user explicitly wants another policy, use "カスタム: ...". If the user did not specify a hallucination policy, use "指定なし".
 {
-  "f-role":"", "f-task":"", "f-context":"", "f-constraint":"", "f-format":"", "f-tone":"", "f-length":"", "f-reasoning":"", "f-lang":"", "f-hallucination":""
+  "f-role":"", "f-task":"", "f-context":"", "f-constraint":"", "f-format":"", "f-tone":"", "f-length":"", "f-reasoning":"", "f-lang":"", "f-hallucination":"指定なし"
 }`;
     grillMessages.push({ role: 'user', content: instruction });
     try {
@@ -117,23 +144,15 @@ Ask me 1 or 2 targeted questions to resolve the most important ambiguity in this
             field.value = 'custom';
             const custom = el(id + '-custom');
             if (custom) {
-              custom.value = value;
+              custom.value = value.replace(/^カスタム:\s*/, '');
               custom.style.display = 'block';
             }
           }
         } else field.value = value;
       });
       update();
-      const preview = el('preview'),
-        result = el('normal-result'),
-        wrap = el('normal-result-wrap');
-      if (
-        preview &&
-        result &&
-        wrap &&
-        preview.textContent.trim() &&
-        !preview.querySelector('.preview-placeholder')
-      ) {
+      const preview = el('preview'), result = el('normal-result'), wrap = el('normal-result-wrap');
+      if (preview && result && wrap && preview.textContent.trim() && !preview.querySelector('.preview-placeholder')) {
         result.textContent = preview.textContent.trim();
         wrap.hidden = false;
       }
@@ -148,11 +167,12 @@ Ask me 1 or 2 targeted questions to resolve the most important ambiguity in this
   }
 
   function bind() {
-    const sendButton = el('btn-grill-send'),
-      applyButton = el('btn-grill-apply');
+    const sendButton = el('btn-grill-send'), applyButton = el('btn-grill-apply');
     if (!sendButton || !applyButton || !window.ganfpuLLM) return false;
     sendButton.onclick = send;
     applyButton.onclick = apply;
+    const resultCopy = el('normal-result-copy');
+    if (resultCopy) resultCopy.onclick = copyResult;
     window.applyGrillMeResult = apply;
     return true;
   }

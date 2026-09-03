@@ -1,6 +1,7 @@
 name: Format and check
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - '*.js'
@@ -28,10 +29,10 @@ jobs:
         with:
           node-version: 22
       - name: Format source files
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         run: npx --yes prettier@3 --write "*.js" "*.css" "*.html"
       - name: Commit formatting changes
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name != 'pull_request'
         run: |
           if git diff --quiet; then
             echo "No formatting changes."

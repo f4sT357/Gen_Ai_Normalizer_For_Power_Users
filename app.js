@@ -879,12 +879,13 @@ function autosave() {
   if (custom) data['f-format-custom'] = custom.value;
   const hallucinationCustom = document.getElementById('f-hallucination-custom');
   if (hallucinationCustom) data['f-hallucination-custom'] = hallucinationCustom.value;
-  localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+  sessionStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
 }
 
 function restoreAutosave() {
   try {
-    const saved = JSON.parse(localStorage.getItem(AUTOSAVE_KEY));
+    localStorage.removeItem(AUTOSAVE_KEY);
+    const saved = JSON.parse(sessionStorage.getItem(AUTOSAVE_KEY));
     if (!saved) return;
     FIELDS.forEach((f) => {
       const el = document.getElementById(f.id);

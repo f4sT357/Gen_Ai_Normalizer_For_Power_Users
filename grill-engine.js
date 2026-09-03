@@ -17,8 +17,44 @@
   }
 
   function parseJson(text) {
-    const match = String(text || '').match(/\{[\s\S]*\}/);
-    return JSON.parse(match ? match[0] : text);
+    const raw = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      let start = raw.indexOf('{');
+      while (start >= 0) {
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+        for (let i = start; i < raw.length; i += 1) {
+          const char = raw[i];
+          if (inString) {
+            if (escaped) escaped = false;
+            else if (char === '\\') escaped = true;
+            else if (char === '"') inString = false;
+            continue;
+          }
+          if (char === '"') {
+            inString = true;
+            continue;
+          }
+          if (char === '{') depth += 1;
+          else if (char === '}') {
+            depth -= 1;
+            if (depth === 0) {
+              const candidate = raw.slice(start, i + 1);
+              try {
+                return JSON.parse(candidate);
+              } catch (nestedError) {
+                break;
+              }
+            }
+          }
+        }
+        start = raw.indexOf('{', start + 1);
+      }
+      throw error;
+    }
   }
 
   function unique(values) {

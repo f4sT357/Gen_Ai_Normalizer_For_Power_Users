@@ -17,6 +17,9 @@
       active: 'Power Modeを閉じる',
       model: 'LM Studioのモデルが選択されています',
       noModel: 'LM Studioのモデル未選択',
+      resultTitle: '生成されたプロンプト',
+      resultCopy: 'コピー',
+      resultCopied: 'コピーしました',
     },
     en: {
       eyebrow: 'INTENT → PROMPT',
@@ -29,6 +32,9 @@
       active: 'Close Power Mode',
       model: 'LM Studio model selected',
       noModel: 'No LM Studio model selected',
+      resultTitle: 'Generated Prompt',
+      resultCopy: 'Copy',
+      resultCopied: 'Copied',
     },
     zh: {
       eyebrow: 'INTENT → PROMPT',
@@ -41,6 +47,9 @@
       active: '关闭 Power Mode',
       model: '已选择 LM Studio 模型',
       noModel: '未选择 LM Studio 模型',
+      resultTitle: '生成的提示词',
+      resultCopy: '复制',
+      resultCopied: '已复制',
     },
     ko: {
       eyebrow: 'INTENT → PROMPT',
@@ -53,6 +62,9 @@
       active: 'Power Mode 닫기',
       model: 'LM Studio 모델이 선택됨',
       noModel: 'LM Studio 모델이 선택되지 않음',
+      resultTitle: '생성된 프롬프트',
+      resultCopy: '복사',
+      resultCopied: '복사됨',
     },
     es: {
       eyebrow: 'INTENT → PROMPT',
@@ -65,6 +77,9 @@
       active: 'Cerrar Power Mode',
       model: 'Modelo de LM Studio seleccionado',
       noModel: 'Sin modelo de LM Studio seleccionado',
+      resultTitle: 'Prompt generado',
+      resultCopy: 'Copiar',
+      resultCopied: 'Copiado',
     },
     fr: {
       eyebrow: 'INTENT → PROMPT',
@@ -77,6 +92,9 @@
       active: 'Fermer Power Mode',
       model: 'Modèle LM Studio sélectionné',
       noModel: 'Aucun modèle LM Studio sélectionné',
+      resultTitle: 'Prompt généré',
+      resultCopy: 'Copier',
+      resultCopied: 'Copié',
     },
   };
 
@@ -103,7 +121,12 @@
             .normal-power-toggle { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
             #normal-power { width: 100%; justify-content: center; }
             .normal-power-desc { margin-top: 8px; text-align: center; color: var(--text-dim); font-size: 12px; }
-            @media (max-width: 700px) { #normal-mode { margin: 22px 0; } .normal-hero { padding: 26px 20px 22px; } .normal-actions { flex-direction: column; } #normal-model-status { min-height: 38px; justify-content: center; } }
+            .normal-result { margin-top: 22px; padding: 22px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface2); }
+            .normal-result-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+            .normal-result-title { font-weight: 700; }
+            #normal-result { margin: 0; max-height: 520px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px; line-height: 1.65; }
+            #normal-result-copy { flex: 0 0 auto; }
+            @media (max-width: 700px) { #normal-mode { margin: 22px 0; } .normal-hero { padding: 26px 20px 22px; } .normal-actions { flex-direction: column; } #normal-model-status { min-height: 38px; justify-content: center; } .normal-result { padding: 16px; } .normal-result-header { align-items: flex-start; } }
         `;
     document.head.appendChild(style);
   }
@@ -123,6 +146,13 @@
                     <button class="btn btn-primary" id="normal-start" type="button"></button>
                     <div id="normal-model-status"></div>
                 </div>
+                <div class="normal-result" id="normal-result-wrap" hidden>
+                    <div class="normal-result-header">
+                        <div class="normal-result-title" id="normal-result-title"></div>
+                        <button class="btn btn-secondary btn-sm" id="normal-result-copy" type="button"></button>
+                    </div>
+                    <pre id="normal-result"></pre>
+                </div>
                 <div class="normal-power-toggle">
                     <button class="btn btn-secondary" id="normal-power" type="button"></button>
                     <div class="normal-power-desc" id="normal-power-desc"></div>
@@ -133,6 +163,7 @@
     powerButton = document.getElementById('normal-power');
     document.getElementById('normal-start').addEventListener('click', startNormalGrill);
     powerButton.addEventListener('click', togglePowerMode);
+    document.getElementById('normal-result-copy').addEventListener('click', copyNormalResult);
     const input = document.getElementById('normal-intent');
     input.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -155,6 +186,8 @@
     set('normal-start', c.start);
     set('normal-power', normalMode ? c.power : c.active);
     set('normal-power-desc', c.powerDesc);
+    set('normal-result-title', c.resultTitle);
+    set('normal-result-copy', c.resultCopy);
     updateModelStatus();
   }
 
@@ -165,6 +198,50 @@
     const ready = typeof selectedLMModel !== 'undefined' && !!selectedLMModel;
     el.textContent = ready ? c.model : c.noModel;
     el.classList.toggle('ready', ready);
+  }
+
+  function showNormalResult() {
+    const preview = document.getElementById('preview');
+    const result = document.getElementById('normal-result');
+    const wrap = document.getElementById('normal-result-wrap');
+    if (!preview || !result || !wrap) return;
+    const text = preview.textContent.trim();
+    if (!text || preview.querySelector('.preview-placeholder')) return;
+    result.textContent = text;
+    wrap.hidden = false;
+  }
+
+  async function copyNormalResult() {
+    const result = document.getElementById('normal-result');
+    if (!result?.textContent.trim()) return;
+    const text = result.textContent;
+    const btn = document.getElementById('normal-result-copy');
+    const c = copy();
+    const done = () => {
+      if (!btn) return;
+      btn.textContent = c.resultCopied;
+      setTimeout(() => {
+        btn.textContent = copy().resultCopy;
+      }, 1500);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        done();
+        return;
+      } catch (e) {}
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;left:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      done();
+    } catch (e) {}
+    ta.remove();
   }
 
   function togglePowerMode() {
@@ -272,6 +349,8 @@
           } else field.value = val;
         });
         update();
+        showNormalResult();
+        if (typeof window.recordHistory === 'function') window.recordHistory('grill');
         closeGrillMe();
         const input = document.getElementById('normal-intent');
         if (input) input.value = document.getElementById('f-task')?.value || input.value;

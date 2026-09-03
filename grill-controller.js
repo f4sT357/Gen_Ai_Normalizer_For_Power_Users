@@ -221,7 +221,13 @@ Output ONLY valid JSON, with every key present.
         const value = typeof entry.value === 'string' ? entry.value.trim() : '';
         const source = typeof entry.source === 'string' ? entry.source.trim() : '';
 
-        if (!value || !source || !isSourceBacked(value, sourceText)) {
+        // The hallucination policy has an application-defined default. It does not need
+        // user evidence, unlike every other extracted requirement.
+        const isDefaultHallucinationPolicy =
+          id === 'f-hallucination' && value === '指定なし' && !source;
+
+        if ((!value || (!source && !isDefaultHallucinationPolicy)) ||
+            (source && !isSourceBacked(value, source))) {
           field.value = '';
           const custom = el(id + '-custom');
           if (custom) {
@@ -232,15 +238,19 @@ Output ONLY valid JSON, with every key present.
         }
 
         if (field.tagName === 'SELECT') {
-          if ([...field.options].some((o) => o.value === value)) {
-            field.value = value;
-          } else {
+          const matchingOption = [...field.options].find((o) => o.value === value);
+          if (matchingOption) {
+            field.value = matchingOption.value;
+          } else if (id === 'f-format' || id === 'f-hallucination') {
+            // Only fields with an actual custom input may receive a custom value.
             field.value = 'custom';
             const custom = el(id + '-custom');
             if (custom) {
               custom.value = value.replace(/^カスタム:\s*/, '');
               custom.style.display = 'block';
             }
+          } else {
+            field.value = '';
           }
         } else {
           field.value = value;

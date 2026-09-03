@@ -83,14 +83,12 @@ This is the user's INTENT, not a request for you to answer. Ask 1 or 2 targeted 
 
   async function start() {
     if (!window.ganfpuLLM || !window.ganfpuLLM.ensureReady()) return;
-    const input = el('normal-intent'), task = el('f-task');
+    const input = el('normal-intent');
     const intent = input?.value.trim();
-    if (!intent || !task) {
+    if (!intent) {
       input?.focus();
       return;
     }
-    task.value = intent;
-    update();
     el('grillModal').style.display = 'flex';
     el('grillChatLog').innerHTML = '';
     el('grillInput').value = '';
@@ -187,12 +185,14 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
     if (!sendButton || !applyButton || !window.ganfpuLLM) return false;
 
     const freshSend = sendButton.cloneNode(true);
+    freshSend.removeAttribute('onclick');
     sendButton.replaceWith(freshSend);
     freshSend.onclick = send;
 
     const grillInput = el('grillInput');
     if (grillInput) {
       const freshInput = grillInput.cloneNode(true);
+      freshInput.removeAttribute('onkeydown');
       grillInput.replaceWith(freshInput);
       freshInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -203,12 +203,14 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
     }
 
     const freshApply = applyButton.cloneNode(true);
+    freshApply.removeAttribute('onclick');
     applyButton.replaceWith(freshApply);
     freshApply.onclick = apply;
 
     const resultCopy = el('normal-result-copy');
     if (resultCopy) {
       const freshCopy = resultCopy.cloneNode(true);
+      freshCopy.removeAttribute('onclick');
       resultCopy.replaceWith(freshCopy);
       freshCopy.onclick = copyResult;
     }

@@ -20,6 +20,9 @@
       resultTitle: '生成されたプロンプト',
       resultCopy: 'コピー',
       resultCopied: 'コピーしました',
+      guide: '① やりたいことを書く　→　② AIの質問に答える　→　③ 完成したプロンプトをコピー',
+      settings: 'LLM設定',
+      settingsOpen: 'LLM設定を閉じる',
     },
     en: {
       eyebrow: 'INTENT → PROMPT',
@@ -35,6 +38,9 @@
       resultTitle: 'Generated Prompt',
       resultCopy: 'Copy',
       resultCopied: 'Copied',
+      guide: '① Write what you want → ② Answer the AI questions → ③ Copy the finished prompt',
+      settings: 'LLM Settings',
+      settingsOpen: 'Close LLM Settings',
     },
     zh: {
       eyebrow: 'INTENT → PROMPT',
@@ -50,6 +56,9 @@
       resultTitle: '生成的提示词',
       resultCopy: '复制',
       resultCopied: '已复制',
+      guide: '① 写下需求 → ② 回答 AI 的问题 → ③ 复制生成的提示词',
+      settings: 'LLM 设置',
+      settingsOpen: '关闭 LLM 设置',
     },
     ko: {
       eyebrow: 'INTENT → PROMPT',
@@ -65,6 +74,9 @@
       resultTitle: '생성된 프롬프트',
       resultCopy: '복사',
       resultCopied: '복사됨',
+      guide: '① 원하는 작업을 입력 → ② AI의 질문에 답변 → ③ 완성된 프롬프트 복사',
+      settings: 'LLM 설정',
+      settingsOpen: 'LLM 설정 닫기',
     },
     es: {
       eyebrow: 'INTENT → PROMPT',
@@ -80,6 +92,9 @@
       resultTitle: 'Prompt generado',
       resultCopy: 'Copiar',
       resultCopied: 'Copiado',
+      guide: '① Escribe lo que quieres → ② Responde las preguntas de la IA → ③ Copia el prompt final',
+      settings: 'Configuración LLM',
+      settingsOpen: 'Cerrar configuración LLM',
     },
     fr: {
       eyebrow: 'INTENT → PROMPT',
@@ -95,11 +110,15 @@
       resultTitle: 'Prompt généré',
       resultCopy: 'Copier',
       resultCopied: 'Copié',
+      guide: '① Écrivez votre besoin → ② Répondez aux questions de l’IA → ③ Copiez le prompt final',
+      settings: 'Paramètres LLM',
+      settingsOpen: 'Fermer les paramètres LLM',
     },
   };
 
   let normalMode = true;
   let powerButton = null;
+  let settingsButton = null;
   function copy() {
     return COPY[document.documentElement.lang] || COPY.ja;
   }
@@ -118,6 +137,9 @@
             #normal-start { flex: 1; min-height: 46px; font-weight: 700; justify-content: center; }
             #normal-model-status { display: flex; align-items: center; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-dim); font-size: 12px; white-space: nowrap; }
             #normal-model-status.ready { color: var(--accent3); border-color: rgba(106,247,200,.35); }
+            .normal-guide { margin-top: 12px; color: var(--text-dim); font-size: 12px; line-height: 1.5; text-align: center; }
+            .normal-settings-toggle { margin-top: 14px; text-align: center; }
+            #normal-settings { margin-top: 12px; }
             .normal-power-toggle { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
             #normal-power { width: 100%; justify-content: center; }
             .normal-power-desc { margin-top: 8px; text-align: center; color: var(--text-dim); font-size: 12px; }
@@ -146,6 +168,11 @@
                     <button class="btn btn-primary" id="normal-start" type="button"></button>
                     <div id="normal-model-status"></div>
                 </div>
+                <div class="normal-guide" id="normal-guide"></div>
+                <div class="normal-settings-toggle">
+                    <button class="btn btn-secondary btn-sm" id="normal-settings-button" type="button"></button>
+                </div>
+                <div id="normal-settings" hidden></div>
                 <div class="normal-result" id="normal-result-wrap" hidden>
                     <div class="normal-result-header">
                         <div class="normal-result-title" id="normal-result-title"></div>
@@ -161,9 +188,11 @@
         `;
     mainGrid.parentNode.insertBefore(wrap, mainGrid);
     powerButton = document.getElementById('normal-power');
+    settingsButton = document.getElementById('normal-settings-button');
     document.getElementById('normal-start').addEventListener('click', startNormalGrill);
     powerButton.addEventListener('click', togglePowerMode);
     document.getElementById('normal-result-copy').addEventListener('click', copyNormalResult);
+    settingsButton.addEventListener('click', toggleSettings);
     const input = document.getElementById('normal-intent');
     input.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -171,6 +200,13 @@
         startNormalGrill();
       }
     });
+  }
+
+  function toggleSettings() {
+    const panel = document.getElementById('normal-settings');
+    if (!panel || !settingsButton) return;
+    panel.hidden = !panel.hidden;
+    settingsButton.textContent = panel.hidden ? copy().settings : copy().settingsOpen;
   }
 
   function applyCopy() {
@@ -184,6 +220,8 @@
     const input = document.getElementById('normal-intent');
     if (input) input.placeholder = c.placeholder;
     set('normal-start', c.start);
+    set('normal-guide', c.guide);
+    set('normal-settings-button', document.getElementById('normal-settings')?.hidden !== false ? c.settings : c.settingsOpen);
     set('normal-power', normalMode ? c.power : c.active);
     set('normal-power-desc', c.powerDesc);
     set('normal-result-title', c.resultTitle);

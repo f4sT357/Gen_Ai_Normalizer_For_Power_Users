@@ -47,23 +47,22 @@ function recordHistory(source = 'manual') {
 function loadHistoryItem(item) {
   if (!item?.data || typeof FIELDS === 'undefined') return;
   FIELDS.forEach((f) => {
-    const el = document.getElementById(f.id);
-    if (el) el.value = item.data[f.id] || '';
+    const field = document.getElementById(f.id);
+    if (field) field.value = item.data[f.id] || '';
   });
   ['f-format-custom', 'f-hallucination-custom'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.value = item.data[id] || '';
+    const field = document.getElementById(id);
+    if (field) field.value = item.data[id] || '';
   });
+
   if (typeof update === 'function') update();
 
-  // History restores the Prompt Specification, not the Normal Mode's fresh intent input.
-  // Keep the normal-result panel synchronized with the restored specification.
-  const preview = document.getElementById('preview');
+  // Restore the exact prompt snapshot stored in History. Do not reconstruct it
+  // from the current UI state because another update/render step may overwrite it.
   const result = document.getElementById('normal-result');
   const wrap = document.getElementById('normal-result-wrap');
-  const text = preview?.textContent.trim() || '';
-  if (result && wrap && text && !preview?.querySelector('.preview-placeholder')) {
-    result.textContent = text;
+  if (result && wrap && typeof item.text === 'string' && item.text.trim()) {
+    result.textContent = item.text.trim();
     wrap.hidden = false;
   }
 

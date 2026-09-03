@@ -8,6 +8,12 @@
 
 (() => {
   const MAX_TERMS = 2;
+  const COMMON_ENGLISH = new Set([
+    'what', 'which', 'where', 'when', 'who', 'why', 'how', 'does', 'do',
+    'are', 'is', 'can', 'could', 'would', 'should', 'your', 'you', 'the',
+    'this', 'that', 'with', 'from', 'into', 'for', 'and', 'or', 'use',
+    'using', 'need', 'want', 'have', 'has', 'will', 'like', 'type', 'kind',
+  ]);
 
   function transcript(messages) {
     return messages
@@ -18,7 +24,7 @@
 
   function userTranscript(messages) {
     return messages
-      .filter((message) => message.role === 'user')
+      .filter((message) => message.role === 'user' && !message.synthetic)
       .map((message) => message.content)
       .join('\n');
   }
@@ -72,19 +78,33 @@
     const value = String(term || '').trim();
     if (!value || value.length < 3) return false;
     if (/https?:\/\//i.test(value)) return false;
+    if (/^[A-Za-z]+$/.test(value) && COMMON_ENGLISH.has(value.toLowerCase())) return false;
     if (/[A-Za-z]{2,}\d+|\d+[A-Za-z]{2,}|\b[A-Z]{2,}\b/.test(value)) return true;
     if (/[0-9]+\s*(mm|cm|kg|g|hz|khz|mhz|v|w|ohm|Ω|%|bit|gb|tb)\b/i.test(value)) return true;
     if (/[規格型番方式互換仕様規定規則用語技術名称モデル]/.test(value)) return true;
-    return /^[ァ-ヶー・]{3,}$/.test(value);
+    if (/^[ァ-ヶー・]{3,}$/.test(value)) return true;
+    if (/^[一-龯々]{3,}$/.test(value)) return true;
+    if (/^[A-Za-z][A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)+$/.test(value)) return true;
+    if (/^[A-Za-z]{4,}$/.test(value)) return true;
+    return false;
   }
 
-  function mechanicallyDetectedTerms(question) {
-    const text = String(question || '');
+  function mechanicallyDetectedTerms(text) {
+    const value = String(text || '');
     const detected = [];
 
-    detected.push(...(text.match(/\b[A-Za-z]{2,}[A-Za-z0-9._-]*\d+[A-Za-z0-9._-]*\b/g) || []));
-    detected.push(...(text.match(/\b[A-Z]{2,}(?:-[A-Z0-9]+)+\b/g) || []));
-    detected.push(...(text.match(/[ァ-ヶー・]{4,}/g) || []));
+    // Explicit technical-looking identifiers and model/standard forms.
+    detected.push(...(value.match(/\b[A-Za-z]{2,}[A-Za-z0-9._-]*\d+[A-Za-z0-9._-]*\b/g) || []));
+    detected.push(...(value.match(/\b[A-Z]{2,}(?:-[A-Z0-9]+)+\b/g) || []));
+    detected.push(...(value.match(/[0-9]+\s*(?:mm|cm|kg|g|hz|khz|mhz|v|w|ohm|Ω|%|bit|gb|tb)\b/gi) || []));
+
+    // Japanese technical candidates: katakana terms and longer kanji compounds.
+    detected.push(...(value.match(/[ァ-ヶー・]{4,}/g) || []));
+    detected.push(...(value.match(/[一-龯々]{3,}/g) || []));
+
+    // English/domain vocabulary that would otherwise be invisible to the old
+    // uppercase/digit-only heuristic (e.g. "impedance", "headphone", "open-back").
+    detected.push(...(value.match(/\b[A-Za-z]{4,}(?:[-_][A-Za-z0-9]+)*\b/g) || []));
 
     return unique(detected).filter(looksKnowledgeSensitive);
   }
@@ -160,9 +180,6 @@ Return ONLY JSON:
   function evidenceContext(items) {
     if (!items.length) return 'No external evidence was required or available.';
     return items.map((item) => {
-      // Search snippets are untrusted webpage content and can contain prompt
-      // injection. They are not needed to establish terminology usage here, so
-      // keep them out of the LLM prompt entirely.
       const sources = (item.evidence || []).slice(0, 6).map((source) => ({
         title: String(source.title || '').slice(0, 300),
         url: String(source.url || '').slice(0, 500),
@@ -227,9 +244,6 @@ Output plain text only.`;
       };
     }
 
-    // Every newly introduced knowledge-sensitive premise must be supported before
-    // it can reach the question-generation LLM. Do not let an unsupported item be
-    // paraphrased into a different form that escapes containsUnsupportedTerm().
     if (evidence.some((item) => item.status !== 'supported')) {
       return {
         question: '',

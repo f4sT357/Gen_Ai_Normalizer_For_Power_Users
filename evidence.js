@@ -93,6 +93,14 @@
     }
   }
 
+  function hostnameFor(result) {
+    try {
+      return new URL(result.url).hostname.toLowerCase();
+    } catch (e) {
+      return '';
+    }
+  }
+
   function collectEvidence(searches) {
     const byUrl = new Map();
     searches.forEach((item) => {
@@ -107,6 +115,30 @@
       });
     });
     return [...byUrl.values()];
+  }
+
+  function assessEvidence(evidence, searches) {
+    const nonEmptySearches = searches.filter((item) => item.results.length > 0).length;
+    const hosts = new Set(evidence.map(hostnameFor).filter(Boolean));
+
+    // Search engines and result-source labels are not independent factual sources.
+    // Require two distinct web hosts with actual URLs, and do not count multiple
+    // search-engine hits that resolve to the same host as corroboration.
+    const independentHosts = hosts.size;
+
+    let status = 'insufficient';
+    let confidence = 0;
+    if (nonEmptySearches >= 2 && independentHosts >= 2) {
+      status = 'supported';
+      confidence = Math.min(0.8, 0.45 + independentHosts * 0.1 + nonEmptySearches * 0.05);
+    } else if (nonEmptySearches === 0) {
+      status = 'unsupported';
+      confidence = 0.8;
+    } else {
+      confidence = Math.min(0.39, 0.1 + nonEmptySearches * 0.08);
+    }
+
+    return { status, confidence, nonEmptySearches, independentHosts };
   }
 
   async function verifyTerm(term, options = {}) {
@@ -125,39 +157,17 @@
     );
 
     const evidence = collectEvidence(settled);
-    const nonEmptySearches = settled.filter((item) => item.results.length > 0).length;
-    const corroboratedSources = new Set(
-      evidence.map((item) => item.source || (() => {
-        try {
-          return new URL(item.url).hostname;
-        } catch (e) {
-          return item.url;
-        }
-      })()).filter(Boolean)
-    ).size;
-
-    // This is deliberately conservative. Search presence is not proof of truth.
-    // "supported" requires multiple independent evidence sources.
-    let status = 'insufficient';
-    let confidence = 0;
-    if (nonEmptySearches >= 2 && corroboratedSources >= 2) {
-      status = 'supported';
-      confidence = Math.min(0.95, 0.55 + corroboratedSources * 0.1 + nonEmptySearches * 0.05);
-    } else if (nonEmptySearches === 0) {
-      status = 'unsupported';
-      confidence = 0.8;
-    } else {
-      confidence = Math.min(0.49, 0.15 + nonEmptySearches * 0.08);
-    }
+    const assessment = assessEvidence(evidence, settled);
 
     return {
       term: value,
-      status,
-      confidence,
+      status: assessment.status,
+      confidence: assessment.confidence,
       evidence,
       searches: settled,
       warnings: [
         'Evidence indicates usage or corroboration; it does not establish factual truth by itself.',
+        'Corroboration is based on distinct web hosts, not independent verification of factual truth.',
       ],
     };
   }

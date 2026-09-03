@@ -1,0 +1,49 @@
+name: Wire prompt history
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wire history module
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text()
+          if 'history.js' not in s:
+              needle='<script src="app.js"></script>'
+              if needle not in s: raise SystemExit('app.js script tag not found')
+              s=s.replace(needle, needle+'\n    <script src="history.js"></script>',1)
+          p.write_text(s)
+          p=Path('normal-mode.js')
+          s=p.read_text()
+          target='        update();\n        closeGrillMe();'
+          repl="        update();\n        if (typeof recordHistory === 'function') recordHistory('grill');\n        closeGrillMe();"
+          if target not in s: raise SystemExit('Grill apply target not found')
+          s=s.replace(target,repl,1)
+          p.write_text(s)
+          p=Path('app.js')
+          s=p.read_text()
+          if "recordHistory('copy')" not in s:
+              target="  const btn = document.getElementById('copyBtn');"
+              s=s.replace(target,"  recordHistory('copy');\n"+target,1)
+          if "recordHistory('download')" not in s:
+              target='  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, \'\');'
+              s=s.replace(target,"  recordHistory('download');\n\n"+target,1)
+          if "recordHistory('share')" not in s:
+              target="  const shareData = { title: t('share-title-prompt'), text };"
+              s=s.replace(target,"  recordHistory('share');\n"+target,1)
+          if "setTimeout(initHistoryUI, 500)" not in s:
+              target='document.addEventListener(\'DOMContentLoaded\', initApp);'
+              s=s.replace(target,"document.addEventListener('DOMContentLoaded', () => {\n  initApp();\n  setTimeout(initHistoryUI, 500);\n});",1)
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html normal-mode.js app.js
+          git commit -m 'feat: wire prompt history [skip ci]'
+          git push

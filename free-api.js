@@ -256,8 +256,11 @@
   }
 
   function ensureReady() {
-    if (provider === 'lmstudio')
-      return !!(typeof selectedLMModel !== 'undefined' && selectedLMModel);
+    if (provider === 'lmstudio') {
+      const ready = !!(typeof selectedLMModel !== 'undefined' && selectedLMModel);
+      if (!ready) showToast('Select an LM Studio model first.');
+      return ready;
+    }
     if (!apiKey) {
       showToast('API key is required.');
       return false;
@@ -435,6 +438,15 @@
 
   function replaceNormalHandlers() {
     // Grill Me UI events are owned by grill-controller.js.
+  }
+
+  function exposeLLMBridge() {
+    window.ganfpuLLM = {
+      request,
+      ensureReady,
+      getProviderLabel: () => currentProvider().label,
+      getModel: () => getConfig().model,
+    };
   }
 
   function init() {

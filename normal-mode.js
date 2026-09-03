@@ -316,17 +316,3 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
-
-// Load the optional browser-side provider module after Normal Mode exists.
-(() => {
-  const load = () => {
-    if (!document.querySelector('script[data-ganfpu-free-api]')) {
-      const s = document.createElement('script');
-      s.src = 'free-api.js';
-      s.dataset.ganfpuFreeApi = '1';
-      document.body.appendChild(s);
-    }
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load);
-  else setTimeout(load, 0);
-})();

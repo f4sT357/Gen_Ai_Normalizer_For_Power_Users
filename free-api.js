@@ -2,6 +2,7 @@
 // GANFPU Free API providers
 // Browser-side BYOK integration for GitHub Pages.
 // No shared API keys are embedded in the repository.
+// API keys stay in memory by default and are never sent to GANFPU.
 // ============================================================
 
 (() => {
@@ -19,8 +20,10 @@
     };
 
     let provider = localStorage.getItem('ganfpu_provider') || 'lmstudio';
+    // API key is intentionally memory-only unless the user explicitly opts in.
     let apiKey = localStorage.getItem(KEY_STORAGE) || '';
     let model = localStorage.getItem('ganfpu_model') || '';
+    let saveKey = !!localStorage.getItem(KEY_STORAGE);
 
     function el(id) { return document.getElementById(id); }
     function currentProvider() { return PROVIDERS[provider] || PROVIDERS.lmstudio; }
@@ -34,10 +37,13 @@
             .free-api-row { display:flex; gap:8px; align-items:center; margin-top:8px; }
             .free-api-row select, .free-api-row input { flex:1; min-width:0; }
             #free-api-key { font-family: monospace; }
+            .free-api-save-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+            .free-api-checkbox { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--text-dim); }
+            .free-api-checkbox input { flex:none; width:auto; }
             .free-api-note { margin-top:8px; color:var(--text-dim); font-size:11px; line-height:1.5; }
             .free-api-status { margin-top:8px; font-size:11px; color:var(--text-dim); }
             .free-api-status.ready { color:var(--accent3); }
-            @media(max-width:700px){ .free-api-row{flex-direction:column;align-items:stretch}.free-api-row button{width:100%} }
+            @media(max-width:700px){ .free-api-row{flex-direction:column;align-items:stretch}.free-api-row button{width:100%}.free-api-save-row{align-items:stretch;flex-direction:column} }
         `;
         document.head.appendChild(s);
     }
@@ -55,10 +61,17 @@
                     <option value="groq">Groq</option>
                     <option value="openrouter">OpenRouter Free</option>
                 </select>
-                <button class="btn btn-secondary btn-sm" id="free-api-save" type="button">Save locally</button>
             </div>
             <div class="free-api-row" id="free-api-key-row">
-                <input id="free-api-key" type="password" autocomplete="off" placeholder="API key (stored only in this browser)">
+                <input id="free-api-key" type="password" autocomplete="off" placeholder="API key">
+            </div>
+            <div class="free-api-save-row" id="free-api-save-row">
+                <label class="free-api-checkbox">
+                    <input id="free-api-save-key" type="checkbox">
+                    <span>この端末に保存する</span>
+                </label>
+                <button class="btn btn-secondary btn-sm" id="free-api-save" type="button">設定を保存</button>
+                <button class="btn btn-secondary btn-sm" id="free-api-clear" type="button">保存したキーを削除</button>
             </div>
             <div class="free-api-row">
                 <input id="free-api-model" type="text" autocomplete="off" placeholder="Model ID">
@@ -70,6 +83,7 @@
         hero.appendChild(box);
 
         el('free-api-provider').value = provider;
+        el('free-api-save-key').checked = saveKey;
         el('free-api-provider').addEventListener('change', () => {
             provider = el('free-api-provider').value;
             if (provider === 'lmstudio') {
@@ -79,7 +93,15 @@
             }
             renderProvider();
         });
+        el('free-api-save-key').addEventListener('change', () => {
+            saveKey = el('free-api-save-key').checked;
+            if (!saveKey) {
+                localStorage.removeItem(KEY_STORAGE);
+                updateStatus();
+            }
+        });
         el('free-api-save').addEventListener('click', saveSettings);
+        el('free-api-clear').addEventListener('click', clearSavedKey);
         el('free-api-models').addEventListener('click', fetchProviderModels);
         el('free-api-key').addEventListener('input', () => { apiKey = el('free-api-key').value; updateStatus(); });
         el('free-api-model').addEventListener('input', () => { model = el('free-api-model').value.trim(); });
@@ -92,14 +114,17 @@
         const keyInput = el('free-api-key');
         const modelInput = el('free-api-model');
         const modelsBtn = el('free-api-models');
+        const saveRow = el('free-api-save-row');
         if (!keyRow || !modelInput) return;
 
         if (provider === 'lmstudio') {
             keyRow.style.display = 'none';
+            if (saveRow) saveRow.style.display = 'none';
             modelsBtn.style.display = 'none';
             modelInput.style.display = 'none';
         } else {
             keyRow.style.display = '';
+            if (saveRow) saveRow.style.display = '';
             modelsBtn.style.display = provider === 'groq' ? '' : 'none';
             modelInput.style.display = '';
             keyInput.value = apiKey;
@@ -108,9 +133,9 @@
         }
         el('free-api-note').textContent = provider === 'lmstudio'
             ? 'Local inference. No API key is sent anywhere.'
-            : provider === 'groq'
-                ? 'Groq free tier. Usage is quota-limited, not unlimited. Your key is kept in localStorage.'
-                : 'OpenRouter Free uses the free-model router. Usage is quota-limited, not unlimited. Your key is kept in localStorage.';
+            : saveKey
+                ? 'API requests go directly from your browser to the provider. The API key is saved in this browser because you explicitly enabled it.'
+                : 'API requests go directly from your browser to the provider. The API key stays in memory only and disappears when the page is closed.';
         updateStatus();
     }
 
@@ -118,10 +143,25 @@
         provider = el('free-api-provider').value;
         apiKey = el('free-api-key')?.value.trim() || '';
         model = el('free-api-model')?.value.trim() || '';
+        saveKey = !!el('free-api-save-key')?.checked;
         localStorage.setItem('ganfpu_provider', provider);
-        localStorage.setItem(KEY_STORAGE, apiKey);
         localStorage.setItem('ganfpu_model', model);
+        if (saveKey && apiKey) {
+            localStorage.setItem(KEY_STORAGE, apiKey);
+        } else {
+            localStorage.removeItem(KEY_STORAGE);
+        }
         updateStatus(true);
+        renderProvider();
+    }
+
+    function clearSavedKey() {
+        localStorage.removeItem(KEY_STORAGE);
+        saveKey = false;
+        const checkbox = el('free-api-save-key');
+        if (checkbox) checkbox.checked = false;
+        updateStatus();
+        renderProvider();
     }
 
     function updateStatus(saved = false) {
@@ -133,13 +173,19 @@
             return;
         }
         const ok = !!apiKey;
-        s.textContent = ok ? (saved ? 'Saved locally' : 'API key configured') : 'API key required';
+        if (!ok) {
+            s.textContent = 'API key required';
+        } else if (saveKey) {
+            s.textContent = saved ? 'API key saved on this device' : 'API key configured · saved locally';
+        } else {
+            s.textContent = 'API key configured · memory only';
+        }
         s.classList.toggle('ready', ok);
     }
 
     async function fetchProviderModels() {
         if (provider !== 'groq') return;
-        if (!apiKey) { showToast('Enter and save a Groq API key first.'); return; }
+        if (!apiKey) { showToast('Enter a Groq API key first.'); return; }
         try {
             const res = await fetch(PROVIDERS.groq.endpoint + '/models', {
                 headers: { Authorization: `Bearer ${apiKey}` }

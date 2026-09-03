@@ -1,6 +1,11 @@
 name: Cleanup Grill Me responsibilities
 
 on:
+  push:
+    paths:
+      - 'free-api.js'
+      - 'normal-mode.js'
+      - '.github/workflows/cleanup-grill-responsibilities.yml'
   workflow_dispatch:
 
 permissions:
@@ -22,9 +27,6 @@ jobs:
 
           free = Path('free-api.js')
           text = free.read_text()
-
-          # free-api.js owns provider/API concerns only. Remove the old Grill Me
-          # implementation that was superseded by grill-controller.js.
           text, n = re.subn(
               r'\n  function buildInitialConversation\(\) \{.*?\n  function exposeLLMBridge\(\)',
               '\n  function exposeLLMBridge()',
@@ -33,12 +35,13 @@ jobs:
           )
           if n != 1:
               raise SystemExit(f'Expected one old Grill Me block, found {n}')
-
-          text = re.sub(
+          text, n = re.subn(
               r'\n    window\.ganfpuFreeApi = \{ startProviderGrill, sendProviderResponse, applyProviderResult \};',
-              '\n    window.ganfpuFreeApi = { provider, request, ensureReady };',
+              '\n    window.ganfpuFreeApi = { request, ensureReady };',
               text,
           )
+          if n != 1:
+              raise SystemExit(f'Expected one old export, found {n}')
           free.write_text(text)
 
           normal = Path('normal-mode.js')

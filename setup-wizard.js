@@ -1,6 +1,6 @@
 // ============================================================
 // GANFPU first-run setup wizard
-// Guides new users through the minimum LLM connection setup.
+// Branches through the minimum LLM connection setup.
 // ============================================================
 
 (() => {
@@ -12,16 +12,18 @@
   function hasSavedProviderConfig() {
     const provider = localStorage.getItem('ganfpu_provider');
     const key = localStorage.getItem('ganfpu_free_api');
-    if (provider === 'lmstudio') return true;
+    if (provider === 'lmstudio') return isLMReady();
     return !!key;
+  }
+
+  function isLMReady() {
+    return typeof selectedLMModel !== 'undefined' && !!selectedLMModel;
   }
 
   function isReady() {
     if (!window.ganfpuLLM) return false;
     const provider = localStorage.getItem('ganfpu_provider') || 'lmstudio';
-    if (provider === 'lmstudio') {
-      return typeof selectedLMModel !== 'undefined' && !!selectedLMModel;
-    }
+    if (provider === 'lmstudio') return isLMReady();
     return !!localStorage.getItem('ganfpu_free_api');
   }
 
@@ -46,6 +48,9 @@
       .setup-wizard-footer { display: flex; gap: 8px; justify-content: space-between; }
       .setup-wizard-footer .right { display: flex; gap: 8px; margin-left: auto; }
       .setup-wizard-provider { width: 100%; margin-top: 12px; }
+      .setup-wizard-choice { display: grid; gap: 10px; margin-top: 16px; }
+      .setup-wizard-choice .btn { width: 100%; justify-content: flex-start; text-align: left; }
+      .setup-wizard-inline-error { margin-top: 10px; color: var(--danger, #ff6b6b); font-size: 12px; min-height: 18px; }
       @media(max-width:700px){
         .setup-wizard-body { padding: 18px; }
         .setup-wizard-footer { flex-wrap: wrap; }
@@ -67,37 +72,50 @@
           <button class="modal-close-btn" id="setup-wizard-x" type="button">×</button>
         </div>
         <div class="setup-wizard-body">
-          <div class="setup-wizard-step active" data-step="1">
+          <div class="setup-wizard-step active" data-step="provider">
             <div class="setup-wizard-title">まずAI接続を設定します</div>
-            <div class="setup-wizard-text">
-              GANFPUは、あなた自身のLLM接続を使って動作します。APIキーはGANFPUのサーバーには送信されません。
+            <div class="setup-wizard-text">どの方法でAIを使いますか？</div>
+            <div class="setup-wizard-choice">
+              <button class="btn btn-primary" data-provider="openrouter" type="button">OpenRouter Free<br><small>無料モデルを使う</small></button>
+              <button class="btn btn-secondary" data-provider="groq" type="button">Groq<br><small>GroqのAPIを使う</small></button>
+              <button class="btn btn-secondary" data-provider="lmstudio" type="button">LM Studio<br><small>自分のPCでローカルLLMを使う</small></button>
             </div>
-            <select class="setup-wizard-provider" id="setup-wizard-provider">
-              <option value="openrouter">OpenRouter Free（おすすめ）</option>
-              <option value="groq">Groq</option>
-              <option value="lmstudio">LM Studio（ローカル）</option>
-            </select>
           </div>
 
-          <div class="setup-wizard-step" data-step="2">
-            <div class="setup-wizard-title" id="setup-wizard-step2-title">APIキーを用意します</div>
-            <div class="setup-wizard-text" id="setup-wizard-step2-text"></div>
+          <div class="setup-wizard-step" data-step="key">
+            <div class="setup-wizard-title" id="setup-wizard-key-title"></div>
+            <div class="setup-wizard-text" id="setup-wizard-key-text"></div>
             <a class="btn btn-secondary btn-sm setup-wizard-link" id="setup-wizard-key-link" target="_blank" rel="noopener noreferrer"></a>
             <input class="setup-wizard-input" id="setup-wizard-key" type="password" autocomplete="off" placeholder="API key">
-            <label class="free-api-checkbox" style="margin-top:10px">
+            <label class="free-api-checkbox" id="setup-wizard-save-wrap" style="margin-top:10px">
               <input id="setup-wizard-save-key" type="checkbox">
               <span>この端末に保存する</span>
             </label>
-            <div class="setup-wizard-note">保存しない場合、APIキーはこのページを閉じると消えます。</div>
+            <div class="setup-wizard-note" id="setup-wizard-key-note"></div>
+            <div class="setup-wizard-inline-error" id="setup-wizard-key-error"></div>
           </div>
 
-          <div class="setup-wizard-step" data-step="3">
-            <div class="setup-wizard-title">接続を確認しています</div>
-            <div class="setup-wizard-text">入力した設定でAIにテストリクエストを送信します。</div>
+          <div class="setup-wizard-step" data-step="lmstudio">
+            <div class="setup-wizard-title">LM Studioを準備します</div>
+            <div class="setup-wizard-text">LM Studioを起動し、使用するモデルをロードしてください。</div>
+            <ol class="setup-wizard-list">
+              <li>LM Studioを起動</li>
+              <li>使用するモデルをロード</li>
+              <li>ローカルサーバーを起動</li>
+              <li>GANFPUのLLM設定でモデルを選択</li>
+            </ol>
+            <button class="btn btn-secondary" id="setup-wizard-open-settings" type="button">LLM設定を開く</button>
+            <div class="setup-wizard-note">設定が終わったら「接続テスト」を押してください。</div>
+            <div class="setup-wizard-inline-error" id="setup-wizard-lm-error"></div>
+          </div>
+
+          <div class="setup-wizard-step" data-step="test">
+            <div class="setup-wizard-title">接続を確認します</div>
+            <div class="setup-wizard-text">設定したAIにテストリクエストを送信します。</div>
             <div class="setup-wizard-status" id="setup-wizard-status"></div>
           </div>
 
-          <div class="setup-wizard-step" data-step="4">
+          <div class="setup-wizard-step" data-step="done">
             <div class="setup-wizard-title">セットアップ完了</div>
             <div class="setup-wizard-text">AI接続の準備ができました。Normal Modeから、そのままプロンプト作成を始められます。</div>
           </div>
@@ -113,104 +131,69 @@
     `;
     document.body.appendChild(modal);
 
-    el('setup-wizard-provider').addEventListener('change', renderStep2);
+    document.querySelectorAll('#setupWizard [data-provider]').forEach((button) => {
+      button.addEventListener('click', () => selectProvider(button.dataset.provider));
+    });
     el('setup-wizard-next').addEventListener('click', next);
     el('setup-wizard-back').addEventListener('click', back);
     el('setup-wizard-later').addEventListener('click', dismiss);
     el('setup-wizard-x').addEventListener('click', dismiss);
-    renderStep2();
+    el('setup-wizard-open-settings').addEventListener('click', openSettings);
   }
 
-  function provider() {
-    return el('setup-wizard-provider')?.value || 'openrouter';
+  let selectedProvider = 'openrouter';
+  let currentStep = 'provider';
+
+  function selectProvider(value) {
+    selectedProvider = value;
+    if (value === 'lmstudio') {
+      currentStep = 'lmstudio';
+      renderStep();
+      return;
+    }
+    currentStep = 'key';
+    renderKeyStep();
+    renderStep();
   }
 
-  function renderStep2() {
-    const p = provider();
-    const title = el('setup-wizard-step2-title');
-    const text = el('setup-wizard-step2-text');
+  function renderKeyStep() {
+    const title = el('setup-wizard-key-title');
+    const text = el('setup-wizard-key-text');
     const link = el('setup-wizard-key-link');
     const key = el('setup-wizard-key');
-    const save = el('setup-wizard-save-key');
-    if (!title || !text || !link || !key || !save) return;
+    const saveWrap = el('setup-wizard-save-wrap');
+    const note = el('setup-wizard-key-note');
+    if (!title || !text || !link || !key || !saveWrap || !note) return;
 
-    if (p === 'lmstudio') {
-      title.textContent = 'LM Studioを起動します';
-      text.textContent = 'LM Studioでローカルサーバーを起動し、モデルをロードしてください。その後、Normal ModeのLLM設定からモデルを選択します。';
-      link.style.display = 'none';
-      key.style.display = 'none';
-      save.parentElement.style.display = 'none';
-    } else if (p === 'groq') {
-      title.textContent = 'GroqのAPIキーを用意します';
-      text.textContent = 'GroqのAPIキーを作成してコピーし、下の欄に貼り付けてください。';
-      link.href = 'https://console.groq.com/keys';
-      link.textContent = 'GroqでAPIキーを取得';
-      link.style.display = '';
-      key.style.display = '';
-      save.parentElement.style.display = '';
-    } else {
-      title.textContent = 'OpenRouterのAPIキーを用意します';
-      text.textContent = 'OpenRouterでAPIキーを作成してコピーし、下の欄に貼り付けてください。GANFPUはOpenRouterの無料モデルを使用する設定になっています。';
-      link.href = 'https://openrouter.ai/keys';
-      link.textContent = 'OpenRouterでAPIキーを取得';
-      link.style.display = '';
-      key.style.display = '';
-      save.parentElement.style.display = '';
-    }
+    const isOpenRouter = selectedProvider === 'openrouter';
+    title.textContent = isOpenRouter ? 'OpenRouterのAPIキーを用意します' : 'GroqのAPIキーを用意します';
+    text.textContent = isOpenRouter
+      ? 'OpenRouterでAPIキーを作成してコピーし、下の欄に貼り付けてください。GANFPUはOpenRouterの無料モデルを使用します。'
+      : 'GroqでAPIキーを作成してコピーし、下の欄に貼り付けてください。';
+    link.href = isOpenRouter ? 'https://openrouter.ai/keys' : 'https://console.groq.com/keys';
+    link.textContent = isOpenRouter ? 'OpenRouterでAPIキーを取得' : 'GroqでAPIキーを取得';
+    key.value = '';
+    key.placeholder = isOpenRouter ? 'OpenRouter API key' : 'Groq API key';
+    saveWrap.style.display = '';
+    note.textContent = '保存しない場合、APIキーはこのページを閉じると消えます。';
+    el('setup-wizard-key-error').textContent = '';
   }
 
-  function setStep(step) {
+  function renderStep() {
     document.querySelectorAll('#setupWizard .setup-wizard-step').forEach((node) => {
-      node.classList.toggle('active', Number(node.dataset.step) === step);
+      node.classList.toggle('active', node.dataset.step === currentStep);
     });
     const backButton = el('setup-wizard-back');
     const nextButton = el('setup-wizard-next');
     const laterButton = el('setup-wizard-later');
-    if (backButton) backButton.style.display = step <= 1 || step >= 4 ? 'none' : '';
-    if (laterButton) laterButton.style.display = step >= 4 ? 'none' : '';
-    if (nextButton) nextButton.textContent = step === 3 ? '接続テスト' : step === 4 ? '始める' : '次へ';
-  }
-
-  let currentStep = 1;
-
-  async function next() {
-    if (currentStep === 1) {
-      currentStep = 2;
-      setStep(currentStep);
-      renderStep2();
-      return;
+    if (backButton) backButton.style.display = currentStep === 'provider' || currentStep === 'done' ? 'none' : '';
+    if (laterButton) laterButton.style.display = currentStep === 'done' ? 'none' : '';
+    if (nextButton) {
+      nextButton.style.display = currentStep === 'provider' || currentStep === 'done' ? '' : '';
+      nextButton.textContent = currentStep === 'test' ? '接続テスト' : currentStep === 'done' ? '始める' : '次へ';
     }
-    if (currentStep === 2) {
-      if (provider() !== 'lmstudio' && !el('setup-wizard-key')?.value.trim()) {
-        showStatus('APIキーを入力してください。', true);
-        return;
-      }
-      currentStep = 3;
-      setStep(currentStep);
-      await configureAndTest();
-      return;
-    }
-    if (currentStep === 3) {
-      await configureAndTest();
-      return;
-    }
-    if (currentStep === 4) {
-      complete();
-    }
-  }
-
-  function back() {
-    if (currentStep <= 1 || currentStep >= 4) return;
-    currentStep -= 1;
-    setStep(currentStep);
-  }
-
-  function showStatus(message, error = false) {
-    const status = el('setup-wizard-status');
-    if (!status) return;
-    status.textContent = message;
-    status.classList.toggle('error', error);
-    status.classList.toggle('ok', !error);
+    if (currentStep === 'provider') nextButton.style.display = 'none';
+    if (currentStep === 'key' || currentStep === 'lmstudio') nextButton.style.display = '';
   }
 
   function openSettings() {
@@ -224,25 +207,33 @@
     const keyInput = el('free-api-key');
     const modelInput = el('free-api-model');
     const saveKey = el('free-api-save-key');
-    if (!providerSelect) throw new Error('LLM settings are not ready yet.');
+    if (!providerSelect) throw new Error('LLM設定を読み込めませんでした。');
 
-    providerSelect.value = provider();
+    providerSelect.value = selectedProvider;
     providerSelect.dispatchEvent(new Event('change'));
 
-    if (provider() !== 'lmstudio') {
+    if (selectedProvider !== 'lmstudio') {
       const value = el('setup-wizard-key')?.value.trim() || '';
       if (keyInput) {
         keyInput.value = value;
         keyInput.dispatchEvent(new Event('input'));
       }
       if (saveKey) saveKey.checked = !!el('setup-wizard-save-key')?.checked;
-      if (modelInput && provider() === 'openrouter') modelInput.value = 'openrouter/free';
+      if (modelInput && selectedProvider === 'openrouter') modelInput.value = 'openrouter/free';
       const saveButton = el('free-api-save');
       if (saveButton) saveButton.click();
     }
   }
 
-  async function configureAndTest() {
+  function showStatus(message, error = false) {
+    const status = el('setup-wizard-status');
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle('error', error);
+    status.classList.toggle('ok', !error);
+  }
+
+  async function testConnection() {
     const nextButton = el('setup-wizard-next');
     if (nextButton) nextButton.disabled = true;
     showStatus('接続を確認しています…');
@@ -257,23 +248,64 @@
       );
       if (!reply.trim()) throw new Error('AIから有効な応答がありませんでした。');
       localStorage.setItem(SETUP_KEY, '1');
-      currentStep = 4;
-      setStep(currentStep);
+      currentStep = 'done';
+      renderStep();
       if (typeof window.ganfpuUpdateModelStatus === 'function') window.ganfpuUpdateModelStatus();
     } catch (error) {
       console.error(error);
       showStatus(`接続に失敗しました: ${error.message}`, true);
-      if (currentStep !== 3) currentStep = 3;
+      currentStep = 'test';
+      renderStep();
     } finally {
       if (nextButton) nextButton.disabled = false;
+    }
+  }
+
+  function next() {
+    if (currentStep === 'key') {
+      const key = el('setup-wizard-key')?.value.trim() || '';
+      if (!key) {
+        el('setup-wizard-key-error').textContent = 'APIキーを入力してください。';
+        return;
+      }
+      currentStep = 'test';
+      renderStep();
+      return;
+    }
+    if (currentStep === 'lmstudio') {
+      if (!isLMReady()) {
+        el('setup-wizard-lm-error').textContent = 'LLM設定でLM Studioのモデルを選択してください。';
+        openSettings();
+        return;
+      }
+      el('setup-wizard-lm-error').textContent = '';
+      currentStep = 'test';
+      renderStep();
+      return;
+    }
+    if (currentStep === 'test') {
+      testConnection();
+      return;
+    }
+    if (currentStep === 'done') complete();
+  }
+
+  function back() {
+    if (currentStep === 'key' || currentStep === 'lmstudio') {
+      currentStep = 'provider';
+      renderStep();
+      return;
+    }
+    if (currentStep === 'test') {
+      currentStep = selectedProvider === 'lmstudio' ? 'lmstudio' : 'key';
+      renderStep();
     }
   }
 
   function complete() {
     const modal = el('setupWizard');
     if (modal) modal.style.display = 'none';
-    const input = el('normal-intent');
-    input?.focus();
+    el('normal-intent')?.focus();
   }
 
   function dismiss() {
@@ -292,8 +324,10 @@
   function open() {
     const modal = el('setupWizard');
     if (!modal) return;
-    currentStep = 1;
-    setStep(currentStep);
+    selectedProvider = localStorage.getItem('ganfpu_provider') || 'openrouter';
+    if (!['openrouter', 'groq', 'lmstudio'].includes(selectedProvider)) selectedProvider = 'openrouter';
+    currentStep = 'provider';
+    renderStep();
     modal.style.display = 'flex';
   }
 

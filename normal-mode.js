@@ -13,10 +13,10 @@
       start: 'Grill Me / Normalize',
       power: 'Power Mode',
       powerDesc: 'Prompt Specificationを手動で編集',
-      needModel: '先にPower ModeでLM Studioのモデルを選択してください。',
+      needModel: '先にLLMプロバイダーを設定してください。',
       active: 'Power Modeを閉じる',
-      model: 'LM Studioのモデルが選択されています',
-      noModel: 'LM Studioのモデル未選択',
+      model: 'LLMモデルが選択されています',
+      noModel: 'LLMモデル未設定',
       resultTitle: '生成されたプロンプト',
       resultCopy: 'コピー',
       resultCopied: 'コピーしました',
@@ -28,10 +28,10 @@
       start: 'Grill Me / Normalize',
       power: 'Power Mode',
       powerDesc: 'Manually edit the Prompt Specification',
-      needModel: 'Select an LM Studio model in Power Mode first.',
+      needModel: 'Configure an LLM provider first.',
       active: 'Close Power Mode',
-      model: 'LM Studio model selected',
-      noModel: 'No LM Studio model selected',
+      model: 'LLM model configured',
+      noModel: 'No LLM model configured',
       resultTitle: 'Generated Prompt',
       resultCopy: 'Copy',
       resultCopied: 'Copied',
@@ -43,10 +43,10 @@
       start: 'Grill Me / Normalize',
       power: 'Power Mode',
       powerDesc: '手动编辑 Prompt Specification',
-      needModel: '请先在 Power Mode 中选择 LM Studio 模型。',
+      needModel: '请先配置 LLM 提供商。',
       active: '关闭 Power Mode',
-      model: '已选择 LM Studio 模型',
-      noModel: '未选择 LM Studio 模型',
+      model: 'LLM 模型已配置',
+      noModel: '未配置 LLM 模型',
       resultTitle: '生成的提示词',
       resultCopy: '复制',
       resultCopied: '已复制',
@@ -58,10 +58,10 @@
       start: 'Grill Me / Normalize',
       power: 'Power Mode',
       powerDesc: 'Prompt Specification 직접 편집',
-      needModel: '먼저 Power Mode에서 LM Studio 모델을 선택하세요.',
+      needModel: '먼저 LLM 제공자를 설정하세요.',
       active: 'Power Mode 닫기',
-      model: 'LM Studio 모델이 선택됨',
-      noModel: 'LM Studio 모델이 선택되지 않음',
+      model: 'LLM 모델이 설정됨',
+      noModel: 'LLM 모델이 설정되지 않음',
       resultTitle: '생성된 프롬프트',
       resultCopy: '복사',
       resultCopied: '복사됨',
@@ -73,10 +73,10 @@
       start: 'Grill Me / Normalize',
       power: 'Power Mode',
       powerDesc: 'Editar manualmente el Prompt Specification',
-      needModel: 'Selecciona primero un modelo de LM Studio en Power Mode.',
+      needModel: 'Configura primero un proveedor LLM.',
       active: 'Cerrar Power Mode',
-      model: 'Modelo de LM Studio seleccionado',
-      noModel: 'Sin modelo de LM Studio seleccionado',
+      model: 'Modelo LLM configurado',
+      noModel: 'Sin modelo LLM configurado',
       resultTitle: 'Prompt generado',
       resultCopy: 'Copiar',
       resultCopied: 'Copiado',
@@ -88,10 +88,10 @@
       start: 'Grill Me / Normalize',
       power: 'Power Mode',
       powerDesc: 'Modifier le Prompt Specification',
-      needModel: 'Sélectionnez d’abord un modèle LM Studio dans Power Mode.',
+      needModel: 'Configurez d’abord un fournisseur LLM.',
       active: 'Fermer Power Mode',
-      model: 'Modèle LM Studio sélectionné',
-      noModel: 'Aucun modèle LM Studio sélectionné',
+      model: 'Modèle LLM configuré',
+      noModel: 'Aucun modèle LLM configuré',
       resultTitle: 'Prompt généré',
       resultCopy: 'Copier',
       resultCopied: 'Copié',
@@ -195,6 +195,14 @@
     const el = document.getElementById('normal-model-status');
     if (!el) return;
     const c = copy();
+    if (window.ganfpuLLM && typeof window.ganfpuLLM.getProviderLabel === 'function') {
+      const provider = window.ganfpuLLM.getProviderLabel();
+      const model = typeof window.ganfpuLLM.getModel === 'function' ? window.ganfpuLLM.getModel() : '';
+      const ready = !!model;
+      el.textContent = ready ? `${provider} · ${model}` : `${provider} · ${c.noModel}`;
+      el.classList.toggle('ready', ready);
+      return;
+    }
     const ready = typeof selectedLMModel !== 'undefined' && !!selectedLMModel;
     el.textContent = ready ? c.model : c.noModel;
     el.classList.toggle('ready', ready);

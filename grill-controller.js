@@ -145,37 +145,92 @@ Rules:
     else showToast('Copy failed. Please select and copy the text manually.');
   }
 
+  function userTranscript() {
+    return grillMessages
+      .filter((message) => message.role === 'user')
+      .map((message) => message.content)
+      .join('\n');
+  }
+
+  function extractJson(text) {
+    const raw = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
+      throw error;
+    }
+  }
+
+  function normalizeSource(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function isSourceBacked(value, source) {
+    const normalizedValue = normalizeSource(value);
+    const normalizedSource = normalizeSource(source);
+    if (!normalizedValue || !normalizedSource) return false;
+    return normalizedSource.includes(normalizedValue);
+  }
+
   async function apply() {
     if (!window.ganfpuLLM || !window.ganfpuLLM.ensureReady()) return;
     appendGrillMessage('system', 'Structuring requirements into Prompt Specification...');
-    const instruction = `Based ONLY on the current Grill Me conversation, structure the final requirements into this JSON format. Existing form fields and Preview content are not context and must be ignored. Output ONLY valid JSON, with every key present. Do not invent requirements.
-For f-hallucination, use ONLY one of these policy values: "指定なし", "不確実な情報を明示", "事実確認を要求", "根拠・出典を要求", "不明な場合は回答しない". If the user explicitly wants another policy, use "カスタム: ...". If the user did not specify a hallucination policy, use "指定なし".
+    const instruction = `Based ONLY on the current Grill Me conversation, extract the final requirements into this JSON format.
+The user messages are the authoritative source. Assistant messages are questions only and MUST NOT be treated as facts or requirements.
+Do not infer unstated preferences, domain facts, technical specifications, recommendations, or solutions.
+For every field, provide a source quote copied from a USER message that directly supports that field.
+The source quote must be an exact substring of a user message, apart from whitespace normalization.
+If a field has no direct user-provided requirement, set its value and source to empty strings.
+Do not turn a question asked by the assistant into a user requirement.
+Do not fill gaps using your own knowledge.
+For f-hallucination, use ONLY one of these policy values: "指定なし", "不確実な情報を明示", "事実確認を要求", "根拠・出典を要求", "不明な場合は回答しない". If the user explicitly wants another policy, use "カスタム: ..." and quote the user's wording.
+If the user did not specify a hallucination policy, use "指定なし" with an empty source.
+Output ONLY valid JSON, with every key present.
 {
-  "f-role":"", "f-task":"", "f-context":"", "f-constraint":"", "f-format":"", "f-tone":"", "f-length":"", "f-reasoning":"", "f-lang":"", "f-hallucination":"指定なし"
+  "f-role":{"value":"","source":""},
+  "f-task":{"value":"","source":""},
+  "f-context":{"value":"","source":""},
+  "f-constraint":{"value":"","source":""},
+  "f-format":{"value":"","source":""},
+  "f-tone":{"value":"","source":""},
+  "f-length":{"value":"","source":""},
+  "f-reasoning":{"value":"","source":""},
+  "f-lang":{"value":"","source":""},
+  "f-hallucination":{"value":"指定なし","source":""}
 }`;
     grillMessages.push({ role: 'user', content: instruction });
     try {
       const reply = (await window.ganfpuLLM.request(grillMessages, 0.2)).trim();
-      const match = reply.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(match ? match[0] : reply);
-      [
-        'f-role',
-        'f-task',
-        'f-context',
-        'f-constraint',
-        'f-format',
-        'f-tone',
-        'f-length',
-        'f-reasoning',
-        'f-lang',
-        'f-hallucination',
-      ].forEach((id) => {
+      const parsed = extractJson(reply);
+      const sourceText = userTranscript();
+      const fields = [
+        'f-role', 'f-task', 'f-context', 'f-constraint', 'f-format',
+        'f-tone', 'f-length', 'f-reasoning', 'f-lang', 'f-hallucination',
+      ];
+      fields.forEach((id) => {
         const field = el(id);
         if (!field) return;
-        const value = typeof parsed[id] === 'string' ? parsed[id] : '';
+        const entry = parsed[id] && typeof parsed[id] === 'object' ? parsed[id] : {};
+        const value = typeof entry.value === 'string' ? entry.value.trim() : '';
+        const source = typeof entry.source === 'string' ? entry.source.trim() : '';
+
+        if (!value || !source || !isSourceBacked(value, sourceText)) {
+          field.value = '';
+          const custom = el(id + '-custom');
+          if (custom) {
+            custom.value = '';
+            custom.style.display = 'none';
+          }
+          return;
+        }
+
         if (field.tagName === 'SELECT') {
-          if ([...field.options].some((o) => o.value === value)) field.value = value;
-          else if (value) {
+          if ([...field.options].some((o) => o.value === value)) {
+            field.value = value;
+          } else {
             field.value = 'custom';
             const custom = el(id + '-custom');
             if (custom) {
@@ -183,17 +238,17 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
               custom.style.display = 'block';
             }
           }
-        } else field.value = value;
+        } else {
+          field.value = value;
+        }
       });
+
       update();
       const preview = el('preview'),
         result = el('normal-result'),
         wrap = el('normal-result-wrap');
       if (
-        preview &&
-        result &&
-        wrap &&
-        preview.textContent.trim() &&
+        preview && result && wrap && preview.textContent.trim() &&
         !preview.querySelector('.preview-placeholder')
       ) {
         result.textContent = preview.textContent.trim();

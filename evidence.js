@@ -86,31 +86,54 @@
   function normalizeUrl(url) {
     try {
       const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return '';
       parsed.hash = '';
       return parsed.toString().replace(/\/$/, '');
-    } catch (e) {
-      return String(url || '').trim();
-    }
-  }
-
-  function hostnameFor(result) {
-    try {
-      return new URL(result.url).hostname.toLowerCase();
     } catch (e) {
       return '';
     }
   }
 
-  function collectEvidence(searches) {
+  function hostnameFor(result) {
+    try {
+      const parsed = new URL(result.url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+      return parsed.hostname.toLowerCase();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function searchableText(result) {
+    return [result.title, result.snippet]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' ')
+      .toLocaleLowerCase();
+  }
+
+  function termAppearsInResult(term, result) {
+    const value = normalizeTerm(term).toLocaleLowerCase();
+    if (!value) return false;
+    return searchableText(result).includes(value);
+  }
+
+  function collectEvidence(searches, term) {
     const byUrl = new Map();
     searches.forEach((item) => {
       (item.results || []).forEach((result) => {
-        const key = normalizeUrl(result.url) || `${result.source}|${result.title}`;
-        const existing = byUrl.get(key);
+        const normalizedUrl = normalizeUrl(result.url);
+        if (!normalizedUrl || !termAppearsInResult(term, result)) return;
+
+        const existing = byUrl.get(normalizedUrl);
         if (existing) {
           existing.matchedQueries = [...new Set([...existing.matchedQueries, item.query])];
         } else {
-          byUrl.set(key, { ...result, matchedQueries: [item.query] });
+          byUrl.set(normalizedUrl, {
+            ...result,
+            url: normalizedUrl,
+            matchedQueries: [item.query],
+          });
         }
       });
     });
@@ -118,27 +141,27 @@
   }
 
   function assessEvidence(evidence, searches) {
-    const nonEmptySearches = searches.filter((item) => item.results.length > 0).length;
+    const corroboratingSearches = searches.filter((item) => item.results.length > 0).length;
     const hosts = new Set(evidence.map(hostnameFor).filter(Boolean));
 
     // Search engines and result-source labels are not independent factual sources.
-    // Require two distinct web hosts with actual URLs, and do not count multiple
-    // search-engine hits that resolve to the same host as corroboration.
+    // Require term-bearing results from two distinct web hosts. This establishes
+    // external usage/corroboration only; it does not establish factual truth.
     const independentHosts = hosts.size;
 
     let status = 'insufficient';
     let confidence = 0;
-    if (nonEmptySearches >= 2 && independentHosts >= 2) {
+    if (corroboratingSearches >= 2 && independentHosts >= 2) {
       status = 'supported';
-      confidence = Math.min(0.8, 0.45 + independentHosts * 0.1 + nonEmptySearches * 0.05);
-    } else if (nonEmptySearches === 0) {
+      confidence = Math.min(0.8, 0.45 + independentHosts * 0.1 + corroboratingSearches * 0.05);
+    } else if (evidence.length === 0) {
       status = 'unsupported';
       confidence = 0.8;
     } else {
-      confidence = Math.min(0.39, 0.1 + nonEmptySearches * 0.08);
+      confidence = Math.min(0.39, 0.1 + corroboratingSearches * 0.08);
     }
 
-    return { status, confidence, nonEmptySearches, independentHosts };
+    return { status, confidence, corroboratingSearches, independentHosts };
   }
 
   async function verifyTerm(term, options = {}) {
@@ -156,8 +179,14 @@
       })
     );
 
-    const evidence = collectEvidence(settled);
-    const assessment = assessEvidence(evidence, settled);
+    // Search success alone is not evidence. A result must contain the exact term
+    // in its title or snippet before it can contribute to corroboration.
+    const relevantSearches = settled.map((item) => ({
+      ...item,
+      results: item.results.filter((result) => termAppearsInResult(value, result)),
+    }));
+    const evidence = collectEvidence(relevantSearches, value);
+    const assessment = assessEvidence(evidence, relevantSearches);
 
     return {
       term: value,
@@ -167,7 +196,7 @@
       searches: settled,
       warnings: [
         'Evidence indicates usage or corroboration; it does not establish factual truth by itself.',
-        'Corroboration is based on distinct web hosts, not independent verification of factual truth.',
+        'Corroboration requires term-bearing results from distinct web hosts; this still does not prove source independence or factual truth.',
       ],
     };
   }

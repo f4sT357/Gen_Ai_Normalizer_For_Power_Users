@@ -43,13 +43,9 @@
     const katakana = source.match(/[ァ-ヶー・]{3,}/g) || [];
     const modelLike = source.match(/\b[A-Za-z]{2,}[A-Za-z0-9._-]*\d+[A-Za-z0-9._-]*\b/g) || [];
     const candidates = unique([...explicit, ...katakana, ...modelLike]);
-
-    // Only verify terms that the candidate introduces or uses as a premise.
-    // User-provided wording remains primary evidence and is not silently rewritten.
-    return candidates.filter((term) => {
-      const normalized = term.toLowerCase();
-      return !userText.toLowerCase().includes(normalized);
-    }).slice(0, MAX_TERMS);
+    return candidates
+      .filter((term) => !userText.toLowerCase().includes(term.toLowerCase()))
+      .slice(0, MAX_TERMS);
   }
 
   async function analyze(messages) {
@@ -84,6 +80,7 @@ Return ONLY JSON:
   async function gatherEvidence(candidate, messages) {
     if (!window.ganfpuEvidence?.verifyTerm) return [];
     const terms = candidateTerms(candidate, messages);
+    if (!terms.length) return [];
     const evidence = [];
     for (const term of terms) {
       try {

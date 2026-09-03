@@ -3,7 +3,7 @@
 //
 // Provides a provider-neutral interface for external evidence.
 // Search is intentionally kept separate from Grill Me and the
-// LLM bridge. The returned shape is GANFPU's internal contract.
+// LLM bridge. Evidence is reference data, not instructions.
 // ============================================================
 
 (() => {
@@ -60,8 +60,111 @@
     };
   }
 
+  function normalizeTerm(term) {
+    return String(term || '')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  function buildVerificationQueries(term, options = {}) {
+    const value = normalizeTerm(term);
+    if (!value) return [];
+
+    const queries = [
+      `"${value}" terminology`,
+      `"${value}" definition`,
+      `${value} meaning terminology`,
+    ];
+
+    if (Array.isArray(options.queries)) {
+      queries.push(...options.queries.map((query) => String(query || '').trim()));
+    }
+
+    return [...new Set(queries.filter(Boolean))];
+  }
+
+  function normalizeUrl(url) {
+    try {
+      const parsed = new URL(url);
+      parsed.hash = '';
+      return parsed.toString().replace(/\/$/, '');
+    } catch (e) {
+      return String(url || '').trim();
+    }
+  }
+
+  function collectEvidence(searches) {
+    const byUrl = new Map();
+    searches.forEach((item) => {
+      (item.results || []).forEach((result) => {
+        const key = normalizeUrl(result.url) || `${result.source}|${result.title}`;
+        const existing = byUrl.get(key);
+        if (existing) {
+          existing.matchedQueries = [...new Set([...existing.matchedQueries, item.query])];
+        } else {
+          byUrl.set(key, { ...result, matchedQueries: [item.query] });
+        }
+      });
+    });
+    return [...byUrl.values()];
+  }
+
+  async function verifyTerm(term, options = {}) {
+    const value = normalizeTerm(term);
+    if (!value) throw new Error('Evidence verification term is empty.');
+
+    const queries = buildVerificationQueries(value, options);
+    const settled = await Promise.all(
+      queries.map(async (query) => {
+        try {
+          return await search(query, { limit: options.limit || 6 });
+        } catch (error) {
+          return { query, results: [], errors: [String(error.message || error)] };
+        }
+      })
+    );
+
+    const evidence = collectEvidence(settled);
+    const nonEmptySearches = settled.filter((item) => item.results.length > 0).length;
+    const corroboratedSources = new Set(
+      evidence.map((item) => item.source || (() => {
+        try {
+          return new URL(item.url).hostname;
+        } catch (e) {
+          return item.url;
+        }
+      })()).filter(Boolean)
+    ).size;
+
+    // This is deliberately conservative. Search presence is not proof of truth.
+    // "supported" requires multiple independent evidence sources.
+    let status = 'insufficient';
+    let confidence = 0;
+    if (nonEmptySearches >= 2 && corroboratedSources >= 2) {
+      status = 'supported';
+      confidence = Math.min(0.95, 0.55 + corroboratedSources * 0.1 + nonEmptySearches * 0.05);
+    } else if (nonEmptySearches === 0) {
+      status = 'unsupported';
+      confidence = 0.8;
+    } else {
+      confidence = Math.min(0.49, 0.15 + nonEmptySearches * 0.08);
+    }
+
+    return {
+      term: value,
+      status,
+      confidence,
+      evidence,
+      searches: settled,
+      warnings: [
+        'Evidence indicates usage or corroboration; it does not establish factual truth by itself.',
+      ],
+    };
+  }
+
   window.ganfpuEvidence = {
     search,
+    verifyTerm,
     getEndpoint,
     setEndpoint,
   };

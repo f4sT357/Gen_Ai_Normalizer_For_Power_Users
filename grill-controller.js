@@ -52,10 +52,13 @@ Rules:
       .trim();
   }
 
+  // Only explicit uncertainty reopens the previous dimension.
+  // "特にない", "ありません", "お任せ" etc. are valid answers meaning
+  // that the user has no additional requirement; they must not reopen the dimension.
   function isUnresolvedAnswer(text) {
     const normalized = normalizeStateValue(text);
     if (!normalized) return false;
-    return /^(分からない|わからない|不明|未定|決めていない|決まっていない|特に決めてない|まだ分からない|まだわからない|よく分からない|よくわからない|任せる|お任せ|どちらでもいい|どちらでも構わない|特にない|ないです|ありません)$/.test(normalized);
+    return /^(分からない|わからない|不明|未定|決めていない|決まっていない|特に決めてない|まだ分からない|まだわからない|よく分からない|よくわからない)$/.test(normalized);
   }
 
   function addBlockedQuestion(candidate) {

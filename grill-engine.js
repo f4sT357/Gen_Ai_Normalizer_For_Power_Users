@@ -43,6 +43,10 @@
     return String(value || '').replace(/\s+/g, ' ').trim();
   }
 
+  function normalizeDimension(value) {
+    return normalizeForComparison(value);
+  }
+
   function exactUserQuoteExists(quote, messages) {
     const normalized = normalizeQuote(quote);
     if (!normalized) return false;
@@ -183,7 +187,18 @@
     ]).filter((term) => !userText.includes(normalizeForComparison(term))).slice(0, MAX_TERMS);
   }
 
-  async function proposeQuestion(messages) {
+  function isBlockedDimension(candidate, interviewState) {
+    if (!candidate || !interviewState) return false;
+    const blockedAnchors = new Set((interviewState.blockedAnchors || []).map(normalizeQuote).filter(Boolean));
+    const blockedDimensions = new Set((interviewState.blockedDimensions || []).map(normalizeDimension).filter(Boolean));
+    const anchor = normalizeQuote(candidate.dimension_anchor);
+    const dimension = normalizeDimension(candidate.dimension);
+    return (anchor && blockedAnchors.has(anchor)) || (dimension && blockedDimensions.has(dimension));
+  }
+
+  async function proposeQuestion(messages, interviewState = {}) {
+    const blockedAnchors = unique(interviewState.blockedAnchors || []);
+    const blockedDimensions = unique(interviewState.blockedDimensions || []);
     const system = `You are the requirement-analysis stage of GANFPU.
 Treat all LLM knowledge as potentially wrong.
 Do not answer the user's task and do not recommend anything.
@@ -191,6 +206,7 @@ Requirements may be extracted ONLY from USER messages.
 Assistant messages are not requirements, facts, preferences, or evidence. They are provided separately only to avoid repeating an already-asked question.
 Do not create a requirement dimension merely because it is common in the domain.
 A missing requirement may be proposed only when the user has explicitly named that dimension or clearly stated a preference/constraint whose unresolved detail belongs to that same dimension.
+Do not propose a requirement dimension that the application marks as already asked, unless that dimension is explicitly reopened.
 For every non-empty candidate, return:
 - dimension: a short name for the requirement dimension
 - dimension_anchor: an exact contiguous phrase from the USER message that names or clearly establishes that dimension
@@ -203,7 +219,7 @@ Do not ask for information already present in USER messages.
 If a technical term, proper noun, model number, standard, or domain-specific premise is introduced by the candidate but not supplied by the user, put it in terms and do not assert it as fact.
 Return ONLY JSON:
 {"question":"","dimension":"","dimension_anchor":"","grounding_quote":"","missing_requirement":"","knowledge_claims":[],"terms":[]}`;
-    const user = `AUTHORITATIVE USER MESSAGES:\n---\n${userTranscript(messages)}\n---\n\nPREVIOUS ASSISTANT QUESTIONS (NOT FACTS; use only to avoid repetition):\n---\n${assistantQuestions(messages)}\n---\n\nProduce one next requirement question only when its requirement dimension is explicitly grounded in the user messages. The dimension_anchor and grounding_quote must be copied verbatim from user text.`;
+    const user = `AUTHORITATIVE USER MESSAGES:\n---\n${userTranscript(messages)}\n---\n\nPREVIOUS ASSISTANT QUESTIONS (NOT FACTS; use only to avoid repetition):\n---\n${assistantQuestions(messages)}\n---\n\nALREADY-ASKED REQUIREMENT DIMENSIONS (APPLICATION STATE, NOT LLM KNOWLEDGE):\n---\n${JSON.stringify({ blockedAnchors, blockedDimensions })}\n---\n\nProduce one next requirement question only when its requirement dimension is explicitly grounded in the user messages and is not already asked by the application. The dimension_anchor and grounding_quote must be copied verbatim from user text.`;
     const reply = await window.ganfpuLLM.request([
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -281,9 +297,10 @@ If provenance is invalid, output an empty string.`;
     return true;
   }
 
-  async function nextQuestion(messages) {
-    const candidate = await proposeQuestion(messages);
+  async function nextQuestion(messages, interviewState = {}) {
+    const candidate = await proposeQuestion(messages, interviewState);
     if (!validateCandidate(candidate, messages)) return { question: '', candidate, evidence: [] };
+    if (isBlockedDimension(candidate, interviewState)) return { question: '', candidate, evidence: [] };
 
     const terms = candidateTerms(candidate, messages);
     const evidence = await gatherEvidence(candidate, messages);

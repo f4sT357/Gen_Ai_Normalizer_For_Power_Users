@@ -244,6 +244,10 @@ For f-hallucination, use ONLY one of these policy values: "指定なし", "不�
       if (modal) modal.style.display = 'none';
       grillMessages = [];
     };
+    const closeButtons = [el('btn-grill-close'), document.querySelector('.modal-close-btn')];
+    closeButtons.forEach((button) => {
+      if (button) button.addEventListener('click', window.closeGrillMe);
+    });
     return true;
   }
 

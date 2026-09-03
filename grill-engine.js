@@ -71,15 +71,32 @@
     return /^[ァ-ヶー・]{3,}$/.test(value);
   }
 
+  function mechanicallyDetectedTerms(question) {
+    const text = String(question || '');
+    const detected = [];
+
+    // Product/model/standard-like tokens are useful even when the LLM forgot
+    // to put them in `terms`.
+    detected.push(...(text.match(/\b[A-Za-z]{2,}[A-Za-z0-9._-]*\d+[A-Za-z0-9._-]*\b/g) || []));
+    detected.push(...(text.match(/\b[A-Z]{2,}(?:-[A-Z0-9]+)+\b/g) || []));
+
+    // Long Katakana compounds are a conservative signal for domain terminology.
+    // Shorter/common words are intentionally ignored to avoid unnecessary searches.
+    detected.push(...(text.match(/[ァ-ヶー・]{4,}/g) || []));
+
+    return unique(detected).filter(looksKnowledgeSensitive);
+  }
+
   function candidateTerms(candidate, messages) {
-    const source = [candidate?.question, ...(candidate?.knowledge_claims || [])].join(' ');
+    const question = String(candidate?.question || '');
+    const source = [question, ...(candidate?.knowledge_claims || [])].join(' ');
     const userText = transcript(messages).toLowerCase();
     const explicit = unique(candidate?.terms || []).filter(looksKnowledgeSensitive);
-    const modelLike = source.match(/\b[A-Za-z]{2,}[A-Za-z0-9._-]*\d+[A-Za-z0-9._-]*\b/g) || [];
-    const candidates = unique([...explicit, ...modelLike]);
+    const mechanical = mechanicallyDetectedTerms(source);
+    const candidates = unique([...explicit, ...mechanical]);
 
     // The LLM may propose candidates, but it never decides whether evidence is trusted.
-    // Verification is triggered deterministically from the proposed terms.
+    // Mechanical detection is a safety net for terms the LLM failed to recognize.
     return candidates
       .filter((term) => !userText.includes(term.toLowerCase()))
       .slice(0, MAX_TERMS);

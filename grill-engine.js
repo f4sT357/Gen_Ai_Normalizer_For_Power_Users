@@ -17,7 +17,7 @@
 
   function transcript(messages) {
     return messages
-      .filter((message) => message.role === 'user' || message.role === 'assistant')
+      .filter((message) => (message.role === 'user' || message.role === 'assistant') && !message.synthetic)
       .map((message) => `${message.role.toUpperCase()}: ${message.content}`)
       .join('\n\n');
   }
@@ -90,6 +90,67 @@
     return [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))];
   }
 
+  function normalizeForComparison(value) {
+    return String(value || '')
+      .normalize('NFKC')
+      .toLocaleLowerCase()
+      .replace(/[\u2010-\u2015\u2212]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function questionFingerprint(question) {
+    return normalizeForComparison(question)
+      .replace(/[?？!！。．,，、:：;；()[\]{}「」『』"'`]/g, ' ')
+      .replace(/\b(please|could|would|can|do|does|are|is)\b/g, ' ')
+      .replace(/\b(教えて|教えてください|お聞きします|お聞かせください)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function tokensForQuestion(question) {
+    const normalized = normalizeForComparison(question);
+    const jp = normalized.match(/[一-龯々ぁ-んァ-ヶー]{2,}/g) || [];
+    const en = normalized.match(/[a-z0-9][a-z0-9_-]{2,}/g) || [];
+    return unique([...jp, ...en]);
+  }
+
+  function isDuplicateQuestion(question, messages) {
+    const fingerprint = questionFingerprint(question);
+    if (!fingerprint) return true;
+    const previousQuestions = messages
+      .filter((message) => message.role === 'assistant' && !message.synthetic)
+      .map((message) => String(message.content || '').trim())
+      .filter(isInterviewQuestionLike);
+
+    if (previousQuestions.some((previous) => questionFingerprint(previous) === fingerprint)) return true;
+
+    const currentTokens = new Set(tokensForQuestion(question));
+    if (currentTokens.size < 2) return false;
+    return previousQuestions.some((previous) => {
+      const previousTokens = new Set(tokensForQuestion(previous));
+      let overlap = 0;
+      currentTokens.forEach((token) => {
+        if (previousTokens.has(token)) overlap += 1;
+      });
+      const ratio = overlap / Math.min(currentTokens.size, previousTokens.size || 1);
+      return ratio >= 0.8;
+    });
+  }
+
+  function isInterviewQuestionLike(text) {
+    const normalized = String(text || '').trim();
+    if (!normalized) return false;
+    if (!/[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/.test(normalized)) return false;
+    const answerLike = [
+      /(^|\n)\s*[-*•]\s+/,
+      /(^|\n)\s*\d+[.)]\s+/,
+      /おすすめ|推薦|候補|以下の|検討してみ|～がおすすめ|最適です|選ぶとよい/i,
+      /\bhttps?:\/\//i,
+    ];
+    return !answerLike.some((pattern) => pattern.test(normalized));
+  }
+
   function looksKnowledgeSensitive(term) {
     const value = String(term || '').trim();
     if (!value || value.length < 3) return false;
@@ -151,7 +212,7 @@ Return ONLY JSON:
   "knowledge_claims":[],
   "terms":[]
 }`;
-    const user = `Current Grill Me transcript:\n---\n${transcript(messages)}\n---\nReturn one concise requirement question only if it is grounded in something the user has actually indicated. Otherwise return an empty question. For any non-empty question, grounding_quote MUST be copied verbatim from one actual USER message. Any terminology or domain premise that is not directly supplied by the user must be treated as untrusted and listed in "terms" if it is necessary to phrase the candidate.`;
+    const user = `Current Grill Me transcript:\n---\n${transcript(messages)}\n---\nReturn one concise requirement question only if it is grounded in something the user has actually indicated. For any non-empty question, grounding_quote MUST be copied verbatim from one actual USER message. Any terminology or domain premise that is not directly supplied by the user must be treated as untrusted and listed in "terms" if it is necessary to phrase the candidate.`;
     const reply = await window.ganfpuLLM.request([
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -226,29 +287,19 @@ Output plain text only.`;
   async function nextQuestion(messages) {
     const candidate = await proposeQuestion(messages);
     if (!candidate.question) return { question: '', candidate, evidence: [] };
-
-    // The LLM must provide provenance for why this requirement is relevant.
-    // Only an exact quote from an actual user-authored turn is accepted.
-    if (!hasGroundingQuote(candidate, messages)) {
-      return { question: '', candidate, evidence: [] };
-    }
+    if (!hasGroundingQuote(candidate, messages)) return { question: '', candidate, evidence: [] };
 
     const terms = candidateTerms(candidate, messages);
     const evidence = await gatherEvidence(candidate, messages);
-
-    // A knowledge-sensitive term that cannot be verified must never fall through
-    // to the raw candidate question.
-    if (terms.length && !evidence.length) {
-      return { question: '', candidate, evidence: [] };
+    if (terms.length && !evidence.length) return { question: '', candidate, evidence: [] };
+    if (evidence.some((item) => item.status !== 'supported')) return { question: '', candidate, evidence };
+    if (!evidence.length) {
+      if (isDuplicateQuestion(candidate.question, messages)) return { question: '', candidate, evidence };
+      return { question: candidate.question, candidate, evidence };
     }
-
-    if (evidence.some((item) => item.status !== 'supported')) {
-      return { question: '', candidate, evidence };
-    }
-
-    if (!evidence.length) return { question: candidate.question, candidate, evidence };
 
     const question = await generateQuestion(messages, candidate, evidence);
+    if (!question || isDuplicateQuestion(question, messages)) return { question: '', candidate, evidence };
     if (containsUnsupportedTerm(question, evidence)) {
       throw new Error('Generated question contains a term that could not be externally verified.');
     }

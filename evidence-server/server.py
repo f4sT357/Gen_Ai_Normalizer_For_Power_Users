@@ -8,6 +8,24 @@ from urllib.parse import parse_qs, urlparse
 
 HOST = os.getenv("GANFPU_EVIDENCE_HOST", "127.0.0.1")
 PORT = int(os.getenv("GANFPU_EVIDENCE_PORT", "8787"))
+MAX_TEXT_LENGTH = 2000
+
+
+def normalize_url(value: object) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = urlparse(text)
+    except ValueError:
+        return ""
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    return text.split("#", 1)[0].rstrip("/")
+
+
+def clean_text(value: object, limit: int = MAX_TEXT_LENGTH) -> str:
+    return str(value or "").strip()[:limit]
 
 
 def search_web(query: str, limit: int) -> tuple[list[dict], list[str]]:
@@ -34,17 +52,33 @@ def search_web(query: str, limit: int) -> tuple[list[dict], list[str]]:
     except json.JSONDecodeError:
         return [], ["webserp returned invalid JSON."]
 
+    raw_results = payload.get("results", [])
+    if not isinstance(raw_results, list):
+        return [], ["webserp returned an invalid results payload."]
+
     results = []
-    for item in payload.get("results", []):
+    seen_urls: set[str] = set()
+    for item in raw_results:
         if not isinstance(item, dict):
             continue
-        title = str(item.get("title") or "").strip()
-        url = str(item.get("url") or "").strip()
-        snippet = str(item.get("content") or item.get("snippet") or "").strip()
-        source = str(item.get("engine") or "").strip()
-        if not (title or url or snippet):
+
+        title = clean_text(item.get("title"))
+        url = normalize_url(item.get("url"))
+        snippet = clean_text(item.get("content") or item.get("snippet"))
+        source = clean_text(item.get("engine"), 100)
+
+        # Evidence consumers must only receive actual HTTP(S) destinations.
+        # Ignore malformed entries rather than allowing them to influence
+        # host-based corroboration later in the pipeline.
+        if not url or url in seen_urls:
             continue
+        if not (title or snippet):
+            continue
+
+        seen_urls.add(url)
         results.append({"title": title, "url": url, "snippet": snippet, "source": source})
+        if len(results) >= limit:
+            break
 
     return results, list(payload.get("unresponsive_engines") or [])
 
@@ -66,7 +100,7 @@ class EvidenceHandler(BaseHTTPRequestHandler):
             return
 
         params = parse_qs(parsed.query)
-        query = (params.get("q") or [""])[0].strip()
+        query = clean_text((params.get("q") or [""])[0])
         try:
             limit = max(1, min(20, int((params.get("limit") or ["8"])[0])))
         except ValueError:

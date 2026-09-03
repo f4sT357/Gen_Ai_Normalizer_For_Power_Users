@@ -55,6 +55,19 @@ function loadHistoryItem(item) {
     if (el) el.value = item.data[id] || '';
   });
   if (typeof update === 'function') update();
+
+  // History restores the Prompt Specification, not the Normal Mode's fresh intent input.
+  // Keep the normal-result panel synchronized with the restored specification.
+  const preview = document.getElementById('preview');
+  const result = document.getElementById('normal-result');
+  const wrap = document.getElementById('normal-result-wrap');
+  const text = preview?.textContent.trim() || '';
+  if (result && wrap && text && !preview?.querySelector('.preview-placeholder')) {
+    result.textContent = text;
+    wrap.hidden = false;
+  }
+
+  if (typeof showToast === 'function') showToast('Prompt History loaded.');
 }
 
 function deleteHistoryItem(id) {

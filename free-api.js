@@ -351,8 +351,11 @@
       if (send) send.disabled = false;
       if (input) {
         input.disabled = false;
-        input.focus();
       }
+      requestAnimationFrame(() => {
+        const log = el('grillChatLog');
+        if (log) log.scrollTop = log.scrollHeight;
+      });
     }
   }
 

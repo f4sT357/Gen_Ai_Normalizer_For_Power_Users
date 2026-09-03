@@ -1,10 +1,14 @@
-const CACHE_NAME = 'ganfpu-v2';
+const CACHE_NAME = 'ganfpu-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './ganfpu.html',
   './style.css',
   './app.js',
+  './normal-mode.js',
+  './grill-controller.js',
+  './free-api.js',
+  './history.js',
   './manifest.json',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',

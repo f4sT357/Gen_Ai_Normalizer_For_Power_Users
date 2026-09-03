@@ -1,0 +1,28 @@
+name: Format check
+
+on:
+  push:
+    paths:
+      - '*.js'
+      - '*.css'
+      - '*.html'
+      - '.prettierrc'
+      - '.github/workflows/format-check.yml'
+  pull_request:
+    paths:
+      - '*.js'
+      - '*.css'
+      - '*.html'
+      - '.prettierrc'
+      - '.github/workflows/format-check.yml'
+
+jobs:
+  prettier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check formatting
+        run: npx --yes prettier@3 --check "*.js" "*.css" "*.html"

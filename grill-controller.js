@@ -1,6 +1,11 @@
 (() => {
   const el = (id) => document.getElementById(id);
   let grillMessages = [];
+  let grillState = {
+    blockedAnchors: [],
+    blockedDimensions: [],
+    lastQuestion: null,
+  };
 
   function buildInitialConversation(intent) {
     const systemPrompt = `You are an expert prompt engineer operating in the requirements-interview phase of a prompt normalization workflow.
@@ -39,12 +44,54 @@ Rules:
     return true;
   }
 
+  function normalizeStateValue(value) {
+    return String(value || '')
+      .normalize('NFKC')
+      .toLocaleLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function isUnresolvedAnswer(text) {
+    const normalized = normalizeStateValue(text);
+    if (!normalized) return false;
+    return /^(分からない|わからない|不明|未定|決めていない|決まっていない|特に決めてない|まだ分からない|まだわからない|よく分からない|よくわからない|任せる|お任せ|どちらでもいい|どちらでも構わない|特にない|ないです|ありません)$/.test(normalized);
+  }
+
+  function addBlockedQuestion(candidate) {
+    if (!candidate) return;
+    const anchor = String(candidate.dimension_anchor || '').trim();
+    const dimension = String(candidate.dimension || '').trim();
+    if (anchor && !grillState.blockedAnchors.includes(anchor)) {
+      grillState.blockedAnchors.push(anchor);
+    }
+    if (dimension && !grillState.blockedDimensions.some((item) => normalizeStateValue(item) === normalizeStateValue(dimension))) {
+      grillState.blockedDimensions.push(dimension);
+    }
+  }
+
+  function reopenLastQuestionDimension() {
+    const last = grillState.lastQuestion;
+    if (!last) return;
+    const anchor = String(last.dimension_anchor || '').trim();
+    const dimension = normalizeStateValue(last.dimension || '');
+    grillState.blockedAnchors = grillState.blockedAnchors.filter((item) => item !== anchor);
+    grillState.blockedDimensions = grillState.blockedDimensions.filter((item) => normalizeStateValue(item) !== dimension);
+  }
+
+  function consumePreviousQuestion(answer) {
+    const last = grillState.lastQuestion;
+    if (!last) return;
+    if (isUnresolvedAnswer(answer)) reopenLastQuestionDimension();
+    grillState.lastQuestion = null;
+  }
+
   async function requestInterviewResponse() {
     if (!window.ganfpuGrillEngine?.nextQuestion) {
       throw new Error('The Grill Engine is unavailable. Interview safety checks cannot be bypassed.');
     }
-    const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages);
-    if (isInterviewQuestion(result.question)) return result.question;
+    const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages, grillState);
+    if (isInterviewQuestion(result.question)) return result;
     throw new Error('The LLM did not return a valid interview question.');
   }
 
@@ -55,11 +102,17 @@ Rules:
     if (input) input.disabled = true;
     appendGrillMessage('system', 'Thinking...');
     try {
-      const reply = await requestInterviewResponse();
+      const result = await requestInterviewResponse();
       const log = el('grillChatLog');
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
-      grillMessages.push({ role: 'assistant', content: reply });
-      appendGrillMessage('ai', reply);
+      grillMessages.push({ role: 'assistant', content: result.question });
+      grillState.lastQuestion = {
+        dimension: String(result.candidate?.dimension || '').trim(),
+        dimension_anchor: String(result.candidate?.dimension_anchor || '').trim(),
+        question: result.question,
+      };
+      addBlockedQuestion(result.candidate);
+      appendGrillMessage('ai', result.question);
     } catch (e) {
       const log = el('grillChatLog');
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
@@ -78,6 +131,7 @@ Rules:
     const input = el('grillInput');
     const text = input?.value.trim();
     if (!text) return;
+    consumePreviousQuestion(text);
     appendGrillMessage('user', text);
     grillMessages.push({ role: 'user', content: text });
     input.value = '';
@@ -96,6 +150,11 @@ Rules:
     el('grillChatLog').innerHTML = '';
     el('grillInput').value = '';
     grillMessages = buildInitialConversation(intent);
+    grillState = {
+      blockedAnchors: [],
+      blockedDimensions: [],
+      lastQuestion: null,
+    };
     appendGrillMessage(
       'system',
       `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`
@@ -330,6 +389,11 @@ Output ONLY valid JSON, with every key present.
       const modal = el('grillModal');
       if (modal) modal.style.display = 'none';
       grillMessages = [];
+      grillState = {
+        blockedAnchors: [],
+        blockedDimensions: [],
+        lastQuestion: null,
+      };
     };
     const closeButtons = [el('btn-grill-close'), document.querySelector('.modal-close-btn')];
     closeButtons.forEach((button) => {

@@ -1,15 +1,15 @@
 // ============================================================
 // GANFPU Semantic Similarity Guard
 // ============================================================
-// Optional local semantic similarity for interview-state checks.
-// This is a guard against wording drift, not a source of truth.
-// If the local embedding runtime is unavailable, the existing
-// deterministic Grill Engine checks continue to operate unchanged.
+// Semantic similarity is a secondary duplicate detector.
+// It never establishes facts and never replaces deterministic
+// provenance checks in grill-engine.js.
 
 (() => {
   const MODEL = 'onnx-community/ruri-v3-30m-ONNX';
   const THRESHOLD = 0.90;
-  const CACHE_LIMIT = 64;
+  const MAX_RETRIES = 2;
+  const CACHE_LIMIT = 96;
 
   let extractorPromise = null;
   const cache = new Map();
@@ -57,7 +57,7 @@
     if (!extractor) return null;
 
     try {
-      // Ruri v3 uses an empty prefix for semantic-meaning embeddings.
+      // Ruri v3's empty prefix is the general semantic-similarity mode.
       const output = await extractor(value, { pooling: 'mean', normalize: true });
       const vector = output?.data ? Array.from(output.data) : null;
       if (!vector?.length) return null;
@@ -68,6 +68,14 @@
       console.warn('[GANFPU] Semantic embedding failed:', error);
       return null;
     }
+  }
+
+  function previousInterviewQuestions(messages) {
+    return (messages || [])
+      .filter((message) => message.role === 'assistant' && !message.synthetic)
+      .map((message) => normalize(message.content))
+      .filter((text) => text && /[?？]|ですか|ますか|でしょうか|どのよう|どちら|何を|何が|どんな|どれ/.test(text))
+      .filter((text) => !/おすすめ|推薦|候補|以下の|検討してみ|最適です|選ぶとよい|\bhttps?:\/\//i.test(text));
   }
 
   async function maxSimilarity(query, candidates) {
@@ -85,6 +93,15 @@
     return best.score >= 0 ? best : { score: null, match: null };
   }
 
+  function candidateSemanticText(result) {
+    const candidate = result?.candidate || {};
+    return normalize([
+      result?.question,
+      candidate.dimension,
+      candidate.missing_requirement,
+    ].filter(Boolean).join(' '));
+  }
+
   function installGrillGuard() {
     const engine = window.ganfpuGrillEngine;
     if (!engine?.nextQuestion || engine.nextQuestion.__semanticGuardInstalled) return;
@@ -92,37 +109,42 @@
     const original = engine.nextQuestion;
 
     const guarded = async function guardedNextQuestion(messages, interviewState = {}) {
-      let workingState = {
-        ...interviewState,
-        blockedAnchors: [...(interviewState.blockedAnchors || [])],
-        blockedDimensions: [...(interviewState.blockedDimensions || [])],
-      };
+      const blockedAnchors = [...(interviewState.blockedAnchors || [])];
+      const blockedDimensions = [...(interviewState.blockedDimensions || [])];
+      const blockedSemanticQuestions = [
+        ...(interviewState.blockedSemanticQuestions || []),
+        ...previousInterviewQuestions(messages),
+      ];
 
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const result = await original(messages, workingState);
-        const anchor = normalize(result?.candidate?.dimension_anchor);
-        const blocked = workingState.blockedAnchors || [];
-        if (!anchor || !blocked.length) return result;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+        const result = await original(messages, {
+          ...interviewState,
+          blockedAnchors,
+          blockedDimensions,
+        });
 
-        const similarity = await maxSimilarity(anchor, blocked);
+        const text = candidateSemanticText(result);
+        if (!text || !blockedSemanticQuestions.length) return result;
+
+        const similarity = await maxSimilarity(text, blockedSemanticQuestions);
         if (similarity.score === null || similarity.score < THRESHOLD) return result;
 
-        // Treat semantic proximity as a secondary guard only. The existing engine's
-        // exact provenance checks remain authoritative; this guard merely asks it
-        // for another candidate when the wording changed but the grounded dimension
-        // is effectively the same.
-        if (!workingState.blockedAnchors.includes(anchor)) {
-          workingState.blockedAnchors.push(anchor);
-        }
+        // The application does not accept semantic similarity as proof.
+        // It only converts a likely duplicate into a deterministic block for
+        // the next engine attempt, preserving the existing provenance rules.
         const dimension = normalize(result?.candidate?.dimension);
-        if (dimension && !workingState.blockedDimensions.includes(dimension)) {
-          workingState.blockedDimensions.push(dimension);
+        const anchor = normalize(result?.candidate?.dimension_anchor);
+        if (dimension && !blockedDimensions.some((value) => normalize(value) === dimension)) {
+          blockedDimensions.push(dimension);
+        }
+        if (anchor && !blockedAnchors.some((value) => normalize(value) === anchor)) {
+          blockedAnchors.push(anchor);
         }
 
-        console.info('[GANFPU] Semantic duplicate dimension rejected:', {
+        console.info('[GANFPU] Semantic duplicate question rejected:', {
           score: Number(similarity.score.toFixed(3)),
-          matchedAnchor: similarity.match,
-          candidateAnchor: anchor,
+          matchedQuestion: similarity.match,
+          candidateQuestion: normalize(result.question),
         });
       }
 
@@ -141,10 +163,6 @@
     model: MODEL,
   };
 
-  // grill-engine.js is loaded immediately before this file in index.html.
-  // Retry once defensively so this remains safe if script loading order changes.
   installGrillGuard();
-  if (!window.ganfpuGrillEngine?.nextQuestion) {
-    setTimeout(installGrillGuard, 0);
-  }
+  if (!window.ganfpuGrillEngine?.nextQuestion) setTimeout(installGrillGuard, 0);
 })();

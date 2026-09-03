@@ -210,7 +210,20 @@ Output plain text only.`;
       return { question: '', candidate, evidence: [] };
     }
 
+    const terms = candidateTerms(candidate, messages);
     const evidence = await gatherEvidence(candidate, messages);
+
+    // A knowledge-sensitive term that cannot be verified must never fall through
+    // to the raw candidate question. Otherwise an unavailable Evidence Layer would
+    // silently turn an LLM hypothesis back into an asserted premise.
+    if (terms.length && !evidence.length) {
+      return {
+        question: '',
+        candidate,
+        evidence: [],
+      };
+    }
+
     if (!evidence.length) {
       return { question: candidate.question, candidate, evidence };
     }

@@ -57,6 +57,7 @@ Rules:
       grounding_quote: String(candidate.grounding_quote || '').trim(),
       status: 'unresolved',
       answer: '',
+      answer_quote: '',
       evidence: [],
     });
     return key;
@@ -69,6 +70,7 @@ Rules:
     if (!node) { grillState.lastQuestion = null; return; }
     node.status = isUnresolvedAnswer(answer) ? 'explicitly_unknown' : 'answered';
     node.answer = String(answer || '').trim();
+    node.answer_quote = String(answer || '').trim();
     syncBlockedRequirementNodes();
     grillState.lastQuestion = null;
   }

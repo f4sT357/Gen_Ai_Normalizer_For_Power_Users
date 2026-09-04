@@ -20,7 +20,7 @@
     const state = {
       ...interviewState,
       requirementNodes: nodes.map((node) => node === selectionNode
-        ? { ...node, status: 'explicitly_unknown' }
+        ? { ...node, status: 'explicitly_unknown', answer: 'わからない' }
         : { ...node })
     };
     return originalNextQuestion(messages, state);

@@ -94,8 +94,17 @@ Rules:
       throw new Error('The Grill Engine is unavailable. Interview safety checks cannot be bypassed.');
     }
     const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages, grillState);
-    if (isInterviewQuestion(result.question)) return result;
-    throw new Error('The LLM did not return a valid interview question.');
+    if (result?.status === 'question' && isInterviewQuestion(result.question)) return result;
+    if (result?.status === 'blocked') {
+      throw new Error('The next question was rejected by the Grill Me safety guards.');
+    }
+    if (result?.status === 'no_question') {
+      throw new Error('No safe interview question could be generated from the user-provided requirements.');
+    }
+    if (result?.status === 'invalid') {
+      throw new Error('The generated interview question failed validation.');
+    }
+    throw new Error('The Grill Engine returned an invalid result state.');
   }
 
   async function respond() {

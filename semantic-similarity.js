@@ -15,6 +15,12 @@
   const cache = new Map();
 
   function normalize(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
+  function requirementNodeKeys(interviewState) {
+    const nodes = Array.isArray(interviewState?.requirementNodes) ? interviewState.requirementNodes : [];
+    const nodeKeys = nodes.map((node) => normalize(node?.key)).filter(Boolean);
+    const legacyKeys = Array.isArray(interviewState?.blockedRequirementNodes) ? interviewState.blockedRequirementNodes : [];
+    return [...new Set([...nodeKeys, ...legacyKeys.map(normalize).filter(Boolean)])];
+  }
 
   function cosine(a, b) {
     if (!a || !b || a.length !== b.length || !a.length) return null;
@@ -91,7 +97,9 @@
     if (!engine?.nextQuestion || engine.nextQuestion.__semanticGuardInstalled) return;
     const original = engine.nextQuestion;
     const guarded = async function guardedNextQuestion(messages, interviewState = {}) {
-      const blockedRequirementNodes = [...(interviewState.blockedRequirementNodes || [])];
+      // requirementNodes is the authoritative application state.
+      // blockedRequirementNodes remains a compatibility fallback only.
+      const blockedRequirementNodes = requirementNodeKeys(interviewState);
       const blockedSemanticQuestions = [
         ...(interviewState.blockedSemanticQuestions || []),
         ...previousInterviewQuestions(messages),

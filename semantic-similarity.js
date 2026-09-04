@@ -110,7 +110,6 @@
 
     const guarded = async function guardedNextQuestion(messages, interviewState = {}) {
       const blockedAnchors = [...(interviewState.blockedAnchors || [])];
-      const blockedDimensions = [...(interviewState.blockedDimensions || [])];
       const blockedSemanticQuestions = [
         ...(interviewState.blockedSemanticQuestions || []),
         ...previousInterviewQuestions(messages),
@@ -120,7 +119,7 @@
         const result = await original(messages, {
           ...interviewState,
           blockedAnchors,
-          blockedDimensions,
+          blockedDimensions: [],
         });
 
         if (result?.status && result.status !== 'question') return result;
@@ -131,14 +130,9 @@
         const similarity = await maxSimilarity(text, blockedSemanticQuestions);
         if (similarity.score === null || similarity.score < THRESHOLD) return result;
 
-        // The application does not accept semantic similarity as proof.
-        // It only converts a likely duplicate into a deterministic block for
-        // the next engine attempt, preserving the existing provenance rules.
-        const dimension = normalize(result?.candidate?.dimension);
+        // Semantic similarity is only a duplicate detector. It never becomes
+        // a requirement identity and never blocks an LLM-generated dimension.
         const anchor = normalize(result?.candidate?.dimension_anchor);
-        if (dimension && !blockedDimensions.some((value) => normalize(value) === dimension)) {
-          blockedDimensions.push(dimension);
-        }
         if (anchor && !blockedAnchors.some((value) => normalize(value) === anchor)) {
           blockedAnchors.push(anchor);
         }

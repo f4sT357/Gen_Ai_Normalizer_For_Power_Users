@@ -14,20 +14,12 @@
   let extractorPromise = null;
   const cache = new Map();
 
-  function normalize(value) {
-    return String(value || '').replace(/\s+/g, ' ').trim();
-  }
+  function normalize(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
 
   function cosine(a, b) {
     if (!a || !b || a.length !== b.length || !a.length) return null;
-    let dot = 0;
-    let aa = 0;
-    let bb = 0;
-    for (let i = 0; i < a.length; i += 1) {
-      dot += a[i] * b[i];
-      aa += a[i] * a[i];
-      bb += b[i] * b[i];
-    }
+    let dot = 0, aa = 0, bb = 0;
+    for (let i = 0; i < a.length; i += 1) { dot += a[i] * b[i]; aa += a[i] * a[i]; bb += b[i] * b[i]; }
     const denom = Math.sqrt(aa) * Math.sqrt(bb);
     return denom > 0 ? dot / denom : null;
   }
@@ -52,12 +44,9 @@
     const value = normalize(text);
     if (!value) return null;
     if (cache.has(value)) return cache.get(value);
-
     const extractor = await getExtractor();
     if (!extractor) return null;
-
     try {
-      // Ruri v3's empty prefix is the general semantic-similarity mode.
       const output = await extractor(value, { pooling: 'mean', normalize: true });
       const vector = output?.data ? Array.from(output.data) : null;
       if (!vector?.length) return null;
@@ -81,7 +70,6 @@
   async function maxSimilarity(query, candidates) {
     const q = await embed(query);
     if (!q) return { score: null, match: null };
-
     let best = { score: -1, match: null };
     for (const candidate of candidates || []) {
       const text = normalize(candidate);
@@ -95,79 +83,37 @@
 
   function candidateSemanticText(result) {
     const candidate = result?.candidate || {};
-    // Include the user-authored anchor so semantic duplicate detection
-    // represents the grounded requirement, not only the LLM wording.
-    return normalize([
-      result?.question,
-      candidate.dimension_anchor,
-      candidate.dimension,
-      candidate.missing_requirement,
-    ].filter(Boolean).join(' '));
+    return normalize([result?.question, candidate.field_id, candidate.dimension_anchor, candidate.missing_requirement].filter(Boolean).join(' '));
   }
 
   function installGrillGuard() {
     const engine = window.ganfpuGrillEngine;
     if (!engine?.nextQuestion || engine.nextQuestion.__semanticGuardInstalled) return;
-
     const original = engine.nextQuestion;
-
     const guarded = async function guardedNextQuestion(messages, interviewState = {}) {
-      const blockedAnchors = [...(interviewState.blockedAnchors || [])];
+      const blockedRequirementNodes = [...(interviewState.blockedRequirementNodes || [])];
       const blockedSemanticQuestions = [
         ...(interviewState.blockedSemanticQuestions || []),
         ...previousInterviewQuestions(messages),
       ];
-
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-        const result = await original(messages, {
-          ...interviewState,
-          blockedAnchors,
-          blockedDimensions: [],
-        });
-
+        const result = await original(messages, { ...interviewState, blockedRequirementNodes });
         if (result?.status && result.status !== 'question') return result;
-
         const text = candidateSemanticText(result);
         if (!text || !blockedSemanticQuestions.length) return result;
-
         const similarity = await maxSimilarity(text, blockedSemanticQuestions);
         if (similarity.score === null || similarity.score < THRESHOLD) return result;
-
-        // Semantic similarity is only a duplicate detector. It never becomes
-        // a requirement identity and never blocks an LLM-generated dimension.
-        const anchor = normalize(result?.candidate?.dimension_anchor);
-        if (anchor && !blockedAnchors.some((value) => normalize(value) === anchor)) {
-          blockedAnchors.push(anchor);
-        }
-
-        console.info('[GANFPU] Semantic duplicate question rejected:', {
-          score: Number(similarity.score.toFixed(3)),
-          matchedQuestion: similarity.match,
-          candidateQuestion: normalize(result.question),
-        });
+        const nodeKey = typeof engine.requirementNodeKey === 'function' ? engine.requirementNodeKey(result?.candidate) : '';
+        if (nodeKey && !blockedRequirementNodes.some((value) => normalize(value) === normalize(nodeKey))) blockedRequirementNodes.push(nodeKey);
+        console.info('[GANFPU] Semantic duplicate question rejected:', { score: Number(similarity.score.toFixed(3)), matchedQuestion: similarity.match, candidateQuestion: normalize(result.question) });
       }
-
-      return {
-        status: 'blocked',
-        reason: 'semantic_duplicate_question',
-        question: '',
-        candidate: null,
-        evidence: [],
-      };
+      return { status: 'blocked', reason: 'semantic_duplicate_question', question: '', candidate: null, evidence: [] };
     };
-
     guarded.__semanticGuardInstalled = true;
     engine.nextQuestion = guarded;
   }
 
-  window.ganfpuSemanticSimilarity = {
-    embed,
-    cosine,
-    maxSimilarity,
-    threshold: THRESHOLD,
-    model: MODEL,
-  };
-
+  window.ganfpuSemanticSimilarity = { embed, cosine, maxSimilarity, threshold: THRESHOLD, model: MODEL };
   installGrillGuard();
   if (!window.ganfpuGrillEngine?.nextQuestion) setTimeout(installGrillGuard, 0);
 })();

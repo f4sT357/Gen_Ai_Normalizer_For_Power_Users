@@ -4,6 +4,10 @@
 // Semantic similarity is a secondary duplicate detector.
 // It never establishes facts and never replaces deterministic
 // provenance checks in grill-engine.js.
+//
+// IMPORTANT: semantic similarity must not merge independent
+// requirement nodes. Node identity is deterministic:
+// field_id + normalized user-grounded dimension_anchor.
 
 (() => {
   const MODEL = 'onnx-community/ruri-v3-30m-ONNX';
@@ -92,30 +96,55 @@
     return normalize([result?.question, candidate.field_id, candidate.dimension_anchor, candidate.missing_requirement].filter(Boolean).join(' '));
   }
 
+  function candidateNodeKey(engine, result) {
+    return typeof engine?.requirementNodeKey === 'function' ? normalize(engine.requirementNodeKey(result?.candidate)) : '';
+  }
+
+  function nodeKeyExists(interviewState, key) {
+    if (!key) return false;
+    return requirementNodeKeys(interviewState).some((value) => normalize(value) === key);
+  }
+
   function installGrillGuard() {
     const engine = window.ganfpuGrillEngine;
     if (!engine?.nextQuestion || engine.nextQuestion.__semanticGuardInstalled) return;
     const original = engine.nextQuestion;
     const guarded = async function guardedNextQuestion(messages, interviewState = {}) {
-      // requirementNodes is the authoritative application state.
-      // blockedRequirementNodes remains a compatibility fallback only.
+      const hasAuthoritativeNodes = Array.isArray(interviewState.requirementNodes) && interviewState.requirementNodes.length > 0;
       const blockedRequirementNodes = requirementNodeKeys(interviewState);
       const blockedSemanticQuestions = [
         ...(interviewState.blockedSemanticQuestions || []),
         ...previousInterviewQuestions(messages),
       ];
+
+      // Semantic similarity is never allowed to reject a candidate merely
+      // because it resembles a question for a different requirement node.
+      // The deterministic node key owns that decision.
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
         const result = await original(messages, { ...interviewState, blockedRequirementNodes });
         if (result?.status && result.status !== 'question') return result;
+
+        const nodeKey = candidateNodeKey(engine, result);
+        if (hasAuthoritativeNodes && nodeKey && !nodeKeyExists(interviewState, nodeKey)) return result;
+        if (!nodeKey && hasAuthoritativeNodes) return result;
+        if (!blockedSemanticQuestions.length) return result;
+
         const text = candidateSemanticText(result);
-        if (!text || !blockedSemanticQuestions.length) return result;
+        if (!text) return result;
         const similarity = await maxSimilarity(text, blockedSemanticQuestions);
         if (similarity.score === null || similarity.score < THRESHOLD) return result;
-        const nodeKey = typeof engine.requirementNodeKey === 'function' ? engine.requirementNodeKey(result?.candidate) : '';
-        if (nodeKey && !blockedRequirementNodes.some((value) => normalize(value) === normalize(nodeKey))) blockedRequirementNodes.push(nodeKey);
-        console.info('[GANFPU] Semantic duplicate question rejected:', { score: Number(similarity.score.toFixed(3)), matchedQuestion: similarity.match, candidateQuestion: normalize(result.question) });
+
+        // A same-node semantic duplicate is safe to reject. Different-node
+        // candidates were returned above and therefore remain independent.
+        if (nodeKey && !blockedRequirementNodes.some((value) => normalize(value) === nodeKey)) return result;
+        console.info('[GANFPU] Semantic duplicate question rejected:', {
+          score: Number(similarity.score.toFixed(3)),
+          matchedQuestion: similarity.match,
+          candidateQuestion: normalize(result.question),
+          nodeKey,
+        });
       }
-      return { status: 'blocked', reason: 'semantic_duplicate_question', question: '', candidate: null, evidence: [] };
+      return { status:'blocked', reason:'semantic_duplicate_question', question:'', candidate:null, evidence:[] };
     };
     guarded.__semanticGuardInstalled = true;
     engine.nextQuestion = guarded;

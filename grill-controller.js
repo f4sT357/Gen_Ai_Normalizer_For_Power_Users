@@ -2,7 +2,7 @@
   const el = (id) => document.getElementById(id);
   const promptFieldIds = new Set(['f-role','f-task','f-context','f-constraint','f-format','f-tone','f-length','f-reasoning','f-lang','f-hallucination']);
   let grillMessages = [];
-  let grillState = { blockedRequirementNodes: [], lastQuestion: null };
+  let grillState = { requirementNodes: [], blockedRequirementNodes: [], lastQuestion: null, interviewComplete: false };
 
   function buildInitialConversation(intent) {
     const systemPrompt = `You are an expert prompt engineer operating in the requirements-interview phase of a prompt normalization workflow.
@@ -40,23 +40,44 @@ Rules:
     const normalized = normalizeStateValue(text);
     return normalized ? /^(分からない|わからない|不明|未定|決めていない|決まっていない|特に決めてない|まだ分からない|まだわからない|よく分からない|よくわからない)$/.test(normalized) : false;
   }
-  function addBlockedQuestion(candidate) {
+  function syncBlockedRequirementNodes() {
+    grillState.blockedRequirementNodes = grillState.requirementNodes
+      .filter((node) => node && node.key && node.status !== 'unresolved')
+      .map((node) => node.key);
+  }
+  function upsertRequirementNode(candidate) {
     const key = normalizeNodeKey(candidate?.field_id, candidate?.dimension_anchor);
-    if (key && !grillState.blockedRequirementNodes.some((item) => normalizeStateValue(item) === normalizeStateValue(key))) grillState.blockedRequirementNodes.push(key);
+    if (!key) return '';
+    const existing = grillState.requirementNodes.find((node) => normalizeStateValue(node.key) === normalizeStateValue(key));
+    if (existing) return key;
+    grillState.requirementNodes.push({
+      key,
+      field_id: String(candidate.field_id || '').trim(),
+      dimension: String(candidate.dimension || '').trim(),
+      anchor: String(candidate.dimension_anchor || '').trim(),
+      grounding_quote: String(candidate.grounding_quote || '').trim(),
+      status: 'unresolved',
+      answer: '',
+      evidence: [],
+    });
+    return key;
   }
-  function reopenLastQuestionNode() {
+  function resolveLastQuestion(answer) {
     const last = grillState.lastQuestion;
-    const key = normalizeNodeKey(last?.field_id, last?.dimension_anchor);
-    if (key) grillState.blockedRequirementNodes = grillState.blockedRequirementNodes.filter((item) => normalizeStateValue(item) !== normalizeStateValue(key));
-  }
-  function consumePreviousQuestion(answer) {
-    if (!grillState.lastQuestion) return;
-    if (isUnresolvedAnswer(answer)) reopenLastQuestionNode();
+    if (!last) return;
+    const key = normalizeNodeKey(last.field_id, last.dimension_anchor);
+    const node = grillState.requirementNodes.find((item) => normalizeStateValue(item.key) === normalizeStateValue(key));
+    if (!node) { grillState.lastQuestion = null; return; }
+    node.status = isUnresolvedAnswer(answer) ? 'explicitly_unknown' : 'answered';
+    node.answer = String(answer || '').trim();
+    syncBlockedRequirementNodes();
     grillState.lastQuestion = null;
   }
+  function consumePreviousQuestion(answer) { resolveLastQuestion(answer); }
 
   async function requestInterviewResponse() {
     if (!window.ganfpuGrillEngine?.nextQuestion) throw new Error('The Grill Engine is unavailable. Interview safety checks cannot be bypassed.');
+    syncBlockedRequirementNodes();
     const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages, grillState);
     if (result?.status === 'question' && isInterviewQuestion(result.question)) return result;
     if (result?.status === 'no_question') return result;
@@ -75,6 +96,7 @@ Rules:
       const log = el('grillChatLog');
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
       if (result.status === 'no_question') {
+        grillState.interviewComplete = true;
         appendGrillMessage('system', 'No further user-grounded requirement needs clarification. You can apply the collected requirements.');
         const applyButton = el('btn-grill-apply');
         if (applyButton) applyButton.disabled = false;
@@ -83,13 +105,15 @@ Rules:
         return;
       }
       grillMessages.push({ role: 'assistant', content: result.question });
+      const nodeKey = upsertRequirementNode(result.candidate);
       grillState.lastQuestion = {
+        key: nodeKey,
         field_id: String(result.candidate?.field_id || '').trim(),
         dimension: String(result.candidate?.dimension || '').trim(),
         dimension_anchor: String(result.candidate?.dimension_anchor || '').trim(),
         question: result.question,
       };
-      addBlockedQuestion(result.candidate);
+      syncBlockedRequirementNodes();
       appendGrillMessage('ai', result.question);
     } catch (e) {
       const log = el('grillChatLog');
@@ -104,7 +128,7 @@ Rules:
   async function send() {
     const input = el('grillInput');
     const text = input?.value.trim();
-    if (!text || input?.disabled) return;
+    if (!text || input?.disabled || grillState.interviewComplete) return;
     consumePreviousQuestion(text);
     appendGrillMessage('user', text);
     grillMessages.push({ role: 'user', content: text });
@@ -120,7 +144,7 @@ Rules:
     el('grillChatLog').innerHTML = '';
     el('grillInput').value = '';
     grillMessages = buildInitialConversation(intent);
-    grillState = { blockedRequirementNodes: [], lastQuestion: null };
+    grillState = { requirementNodes: [], blockedRequirementNodes: [], lastQuestion: null, interviewComplete: false };
     appendGrillMessage('system', `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`);
     await respond();
   }
@@ -203,7 +227,7 @@ Output ONLY valid JSON, with every key present.
     const resultCopy = el('normal-result-copy');
     if (resultCopy) { const freshCopy = resultCopy.cloneNode(true); freshCopy.removeAttribute('onclick'); resultCopy.replaceWith(freshCopy); freshCopy.onclick = copyResult; }
     window.applyGrillMeResult = apply;
-    window.closeGrillMe = () => { const modal = el('grillModal'); if (modal) modal.style.display = 'none'; grillMessages = []; grillState = { blockedRequirementNodes: [], lastQuestion: null }; };
+    window.closeGrillMe = () => { const modal = el('grillModal'); if (modal) modal.style.display = 'none'; grillMessages = []; grillState = { requirementNodes: [], blockedRequirementNodes: [], lastQuestion: null, interviewComplete: false }; };
     [el('btn-grill-close'), document.querySelector('.modal-close-btn')].forEach((button) => { if (button) button.addEventListener('click', window.closeGrillMe); });
     return true;
   }

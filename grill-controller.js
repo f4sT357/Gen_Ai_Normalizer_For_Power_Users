@@ -119,7 +119,8 @@ Rules:
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
       appendGrillMessage('system', `Error: ${e.message}`);
     } finally {
-      if (!el('grillInput')?.disabled && send) send.disabled = false;
+      if (send) send.disabled = grillState.interviewComplete;
+      if (input) input.disabled = grillState.interviewComplete;
       requestAnimationFrame(() => { const log = el('grillChatLog'); if (log) log.scrollTop = log.scrollHeight; });
     }
   }
@@ -224,7 +225,7 @@ Output ONLY valid JSON, with every key present.
     if (grillInput) { const freshInput = grillInput.cloneNode(true); freshInput.removeAttribute('onkeydown'); grillInput.replaceWith(freshInput); freshInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }); }
     const freshApply = applyButton.cloneNode(true); freshApply.removeAttribute('onclick'); applyButton.replaceWith(freshApply); freshApply.onclick = apply;
     const resultCopy = el('normal-result-copy');
-    if (resultCopy) { const freshCopy = resultCopy.cloneNode(true); freshCopy.removeAttribute('onclick'); resultCopy.replaceWith(freshCopy); freshCopy.onclick = copyResult; }
+    if (resultCopy) { const freshCopy = resultCopy.cloneNode(true); resultCopy.replaceWith(freshCopy); freshCopy.onclick = copyResult; }
     window.applyGrillMeResult = apply;
     window.closeGrillMe = () => { const modal = el('grillModal'); if (modal) modal.style.display = 'none'; grillMessages = []; grillState = { requirementNodes: [], blockedRequirementNodes: [], lastQuestion: null, interviewComplete: false }; };
     [el('btn-grill-close'), document.querySelector('.modal-close-btn')].forEach((button) => { if (button) button.addEventListener('click', window.closeGrillMe); });

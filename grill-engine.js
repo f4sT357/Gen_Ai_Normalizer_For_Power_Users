@@ -95,6 +95,7 @@ Return ONLY JSON: {"question":"","field_id":"","dimension":"","dimension_anchor"
     const candidate = await proposeQuestion(messages, interviewState);
     if (!validateCandidate(candidate, messages)) return { status:'no_question', reason:'candidate_not_grounded_or_low_value', question:'', candidate, evidence:[] };
     if (isBlockedRequirementNode(candidate, interviewState)) return { status:'blocked', reason:'requirement_node_already_asked', question:'', candidate, evidence:[] };
+    if (window.ganfpuGrillRequirements?.hasSourceIdentityConflict?.(interviewState, candidate, messages)) return { status:'blocked', reason:'requirement_source_already_asked', question:'', candidate, evidence:[] };
     const terms = candidateTerms(candidate, messages);
     const evidence = await gatherEvidence(candidate, messages);
     if (terms.length && !evidence.length) return { status:'blocked', reason:'evidence_unavailable', question:'', candidate, evidence:[] };

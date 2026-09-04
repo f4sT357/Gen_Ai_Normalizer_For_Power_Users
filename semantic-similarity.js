@@ -123,6 +123,8 @@
           blockedDimensions,
         });
 
+        if (result?.status && result.status !== 'question') return result;
+
         const text = candidateSemanticText(result);
         if (!text || !blockedSemanticQuestions.length) return result;
 
@@ -148,7 +150,13 @@
         });
       }
 
-      return { question: '', candidate: null };
+      return {
+        status: 'blocked',
+        reason: 'semantic_duplicate_question',
+        question: '',
+        candidate: null,
+        evidence: [],
+      };
     };
 
     guarded.__semanticGuardInstalled = true;

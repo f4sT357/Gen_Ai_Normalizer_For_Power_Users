@@ -3,7 +3,6 @@
   let grillMessages = [];
   let grillState = {
     blockedAnchors: [],
-    blockedDimensionIds: [],
     lastQuestion: null,
   };
 
@@ -61,12 +60,8 @@ Rules:
   function addBlockedQuestion(candidate) {
     if (!candidate) return;
     const anchor = String(candidate.dimension_anchor || '').trim();
-    const dimensionId = normalizeStateValue(candidate.dimension_id);
     if (anchor && !grillState.blockedAnchors.includes(anchor)) {
       grillState.blockedAnchors.push(anchor);
-    }
-    if (dimensionId && !grillState.blockedDimensionIds.includes(dimensionId)) {
-      grillState.blockedDimensionIds.push(dimensionId);
     }
   }
 
@@ -74,9 +69,7 @@ Rules:
     const last = grillState.lastQuestion;
     if (!last) return;
     const anchor = String(last.dimension_anchor || '').trim();
-    const dimensionId = normalizeStateValue(last.dimension_id);
     grillState.blockedAnchors = grillState.blockedAnchors.filter((item) => item !== anchor);
-    grillState.blockedDimensionIds = grillState.blockedDimensionIds.filter((item) => item !== dimensionId);
   }
 
   function consumePreviousQuestion(answer) {
@@ -109,7 +102,6 @@ Rules:
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
       grillMessages.push({ role: 'assistant', content: result.question });
       grillState.lastQuestion = {
-        dimension_id: normalizeStateValue(result.candidate?.dimension_id),
         dimension: String(result.candidate?.dimension || '').trim(),
         dimension_anchor: String(result.candidate?.dimension_anchor || '').trim(),
         question: result.question,
@@ -153,7 +145,7 @@ Rules:
     el('grillChatLog').innerHTML = '';
     el('grillInput').value = '';
     grillMessages = buildInitialConversation(intent);
-    grillState = { blockedAnchors: [], blockedDimensionIds: [], lastQuestion: null };
+    grillState = { blockedAnchors: [], lastQuestion: null };
     appendGrillMessage('system', `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`);
     await respond();
   }
@@ -316,7 +308,7 @@ Output ONLY valid JSON, with every key present.
       const modal = el('grillModal');
       if (modal) modal.style.display = 'none';
       grillMessages = [];
-      grillState = { blockedAnchors: [], blockedDimensionIds: [], lastQuestion: null };
+      grillState = { blockedAnchors: [], lastQuestion: null };
     };
     const closeButtons = [el('btn-grill-close'), document.querySelector('.modal-close-btn')];
     closeButtons.forEach((button) => { if (button) button.addEventListener('click', window.closeGrillMe); });

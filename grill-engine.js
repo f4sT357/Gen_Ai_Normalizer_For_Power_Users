@@ -10,6 +10,7 @@
   const COMMON_ENGLISH = new Set(['what','which','where','when','who','why','how','does','do','are','is','can','could','would','should','your','you','the','this','that','with','from','into','for','and','or','use','using','need','want','have','has','will','like','type','kind','looking']);
   const NOOP_REQUIREMENT_RE = /^(?:任意|特に(?:なし|ない)|指定なし|指定はない|お任せ|おまかせ|どちらでも(?:いい|よい)|どれでも(?:いい|よい)|何でも(?:いい|よい)|こだわり(?:は)?(?:ない|なし)|制約(?:は)?(?:ない|なし)|希望(?:は)?(?:ない|なし)|未定|決めていない|決まっていない)$/i;
   const SELECTION_REQUEST_RE = /(?:おすすめ|推薦|推奨|選んで|選びたい|選択|比較|候補|どれがいい|どれが良い|どれにすべき|どれにしたら)/i;
+  const UNKNOWN_ANSWER_RE = /^(?:分からない|わからない|不明|未定|決めていない|決まっていない|特に決めてない|まだ分からない|まだわからない|よく分からない|よくわからない|特にない|特にありません|お任せ|おまかせ)$/i;
 
   function authoritativeUsers(messages) { return messages.filter((m) => m.role === 'user' && !m.synthetic).map((m) => String(m.content || '').trim()).filter(Boolean); }
   function userTranscript(messages) { return authoritativeUsers(messages).join('\n'); }
@@ -59,19 +60,44 @@
   function selectionMetaFallback(messages, candidate, interviewState) {
     const users = authoritativeUsers(messages);
     if (!users.length || !SELECTION_REQUEST_RE.test(userTranscript(messages))) return candidate;
-    const existingCriteria = Array.isArray(interviewState?.requirementNodes) && interviewState.requirementNodes.some((node) => normalizeForComparison(node?.dimension) === 'selection_criteria' || normalizeForComparison(node?.field_id) === 'f-constraint');
+    const existingCriteria = Array.isArray(interviewState?.requirementNodes) && interviewState.requirementNodes.some((node) => normalizeForComparison(node?.dimension) === 'selection_criteria');
     if (existingCriteria) return candidate;
     const anchor = users[users.length - 1];
     if (!anchor || !SELECTION_REQUEST_RE.test(anchor)) return candidate;
+    return { question:'どのような基準で選びたいですか？', field_id:'f-constraint', dimension:'selection_criteria', dimension_anchor:anchor, grounding_quote:anchor, missing_requirement:'selection criteria', knowledge_claims:[], terms:[] };
+  }
+
+  function selectionUnknownNode(interviewState) {
+    const nodes = Array.isArray(interviewState?.requirementNodes) ? interviewState.requirementNodes : [];
+    return nodes.find((node) => normalizeForComparison(node?.dimension) === 'selection_criteria' && UNKNOWN_ANSWER_RE.test(normalizeForComparison(node?.answer)));
+  }
+
+  function hasKnowledgeAssistanceNode(interviewState) {
+    const nodes = Array.isArray(interviewState?.requirementNodes) ? interviewState.requirementNodes : [];
+    return nodes.some((node) => normalizeForComparison(node?.dimension) === 'selection_criteria_knowledge_assistance');
+  }
+
+  async function knowledgeAssistedSelection(messages, interviewState = {}) {
+    const unknownNode = selectionUnknownNode(interviewState);
+    if (!unknownNode || hasKnowledgeAssistanceNode(interviewState) || !window.ganfpuKnowledge?.research) return null;
+    const knowledge = await window.ganfpuKnowledge.research(messages, interviewState);
+    if (!knowledge || !Array.isArray(knowledge.selection_axes) || !knowledge.selection_axes.length) return null;
+
+    const users = authoritativeUsers(messages);
+    const anchor = users[users.length - 1] || unknownNode.anchor || unknownNode.grounding_quote;
+    const axes = unique(knowledge.selection_axes).slice(0, 6);
+    const question = `選ぶための基準が分からないとのことなので、候補を決める際に「${axes.join('」「')}」のうち、気になるものはありますか？`;
     return {
-      question: 'どのような基準で選びたいですか？',
-      field_id: 'f-constraint',
-      dimension: 'selection_criteria',
-      dimension_anchor: anchor,
-      grounding_quote: anchor,
-      missing_requirement: 'selection criteria',
-      knowledge_claims: [],
-      terms: []
+      question,
+      field_id:'f-constraint',
+      dimension:'selection_criteria_knowledge_assistance',
+      dimension_anchor:anchor,
+      grounding_quote:anchor,
+      missing_requirement:'selection criteria after knowledge-assisted discovery',
+      knowledge_claims:[],
+      terms:[],
+      knowledge_assisted:true,
+      knowledge
     };
   }
 
@@ -93,6 +119,13 @@
   function validateCandidate(candidate, messages) { if (!candidate.question || !candidate.field_id || !candidate.dimension || !candidate.missing_requirement) return false; if (!PROMPT_FIELD_IDS.has(candidate.field_id)) return false; if (!candidate.dimension_anchor || !exactUserQuoteExists(candidate.dimension_anchor, messages)) return false; if (!candidate.grounding_quote || !exactUserQuoteExists(candidate.grounding_quote, messages)) return false; if (!exactUserQuoteContains(candidate.grounding_quote, candidate.dimension_anchor, messages)) return false; if (isNoopRequirement(candidate)) return false; return true; }
 
   async function nextQuestion(messages, interviewState = {}) {
+    const knowledgeCandidate = await knowledgeAssistedSelection(messages, interviewState);
+    if (knowledgeCandidate) {
+      const terms = [];
+      const evidence = knowledgeCandidate.knowledge?.sources ? knowledgeCandidate.knowledge.sources.map((source) => ({ term:knowledgeCandidate.knowledge.topic, status:'supported', confidence:0.5, evidence:[source], warnings:['External research is reference material only; it is not a user requirement.'] })) : [];
+      if (validateCandidate(knowledgeCandidate, messages) && !isDuplicateQuestion(knowledgeCandidate.question, messages)) return { status:'question', question:knowledgeCandidate.question, candidate:knowledgeCandidate, evidence };
+    }
+
     const candidate = await proposeQuestion(messages, interviewState);
     if (!validateCandidate(candidate, messages)) return { status:'no_question', reason:'candidate_not_grounded_or_low_value', question:'', candidate, evidence:[] };
     if (isBlockedRequirementNode(candidate, interviewState)) return { status:'blocked', reason:'requirement_node_already_asked', question:'', candidate, evidence:[] };

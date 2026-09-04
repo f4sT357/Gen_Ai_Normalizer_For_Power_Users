@@ -9,6 +9,7 @@
   const PROMPT_FIELD_IDS = new Set(['f-role','f-task','f-context','f-constraint','f-format','f-tone','f-length','f-reasoning','f-lang','f-hallucination']);
   const COMMON_ENGLISH = new Set(['what','which','where','when','who','why','how','does','do','are','is','can','could','would','should','your','you','the','this','that','with','from','into','for','and','or','use','using','need','want','have','has','will','like','type','kind','looking']);
   const NOOP_REQUIREMENT_RE = /^(?:任意|特に(?:なし|ない)|指定なし|指定はない|お任せ|おまかせ|どちらでも(?:いい|よい)|どれでも(?:いい|よい)|何でも(?:いい|よい)|こだわり(?:は)?(?:ない|なし)|制約(?:は)?(?:ない|なし)|希望(?:は)?(?:ない|なし)|未定|決めていない|決まっていない)$/i;
+  const SELECTION_REQUEST_RE = /(?:おすすめ|推薦|推奨|選んで|選びたい|選択|比較|候補|どれがいい|どれが良い|どれにすべき|どれにしたら)/i;
 
   function authoritativeUsers(messages) { return messages.filter((m) => m.role === 'user' && !m.synthetic).map((m) => String(m.content || '').trim()).filter(Boolean); }
   function userTranscript(messages) { return authoritativeUsers(messages).join('\n'); }
@@ -54,6 +55,25 @@
   function candidateTerms(candidate, messages) { const userText = normalizeForComparison(userTranscript(messages)); const llmTerms = unique(candidate.terms || []).filter(looksKnowledgeSensitive); const claimTerms = mechanicallyDetectedTerms((candidate.knowledge_claims || []).join(' ')); return unique([...llmTerms, ...claimTerms]).filter((term) => !userText.includes(normalizeForComparison(term))).slice(0, MAX_TERMS); }
   function isBlockedRequirementNode(candidate, interviewState) { const key = requirementNodeKey(candidate); if (!key || !interviewState) return false; const normalizedKey = normalizeForComparison(key); return requirementNodeKeys(interviewState).some((item) => item === normalizedKey); }
   function isNoopRequirement(candidate) { return NOOP_REQUIREMENT_RE.test(normalizeForComparison(candidate?.missing_requirement)); }
+  function isSelectionMetaRequest(candidate, messages) { const text = userTranscript(messages); return SELECTION_REQUEST_RE.test(text) && !candidate?.question && !candidate?.dimension_anchor ? false : false; }
+  function selectionMetaFallback(messages, candidate, interviewState) {
+    const users = authoritativeUsers(messages);
+    if (!users.length || !SELECTION_REQUEST_RE.test(userTranscript(messages))) return candidate;
+    const existingCriteria = Array.isArray(interviewState?.requirementNodes) && interviewState.requirementNodes.some((node) => normalizeForComparison(node?.dimension) === 'selection_criteria' || normalizeForComparison(node?.field_id) === 'f-constraint');
+    if (existingCriteria) return candidate;
+    const anchor = users[users.length - 1];
+    if (!anchor || !SELECTION_REQUEST_RE.test(anchor)) return candidate;
+    return {
+      question: 'どのような基準で選びたいですか？',
+      field_id: 'f-constraint',
+      dimension: 'selection_criteria',
+      dimension_anchor: anchor,
+      grounding_quote: anchor,
+      missing_requirement: 'selection criteria',
+      knowledge_claims: [],
+      terms: []
+    };
+  }
 
   async function proposeQuestion(messages, interviewState = {}) {
     const requirementNodes = Array.isArray(interviewState.requirementNodes) ? interviewState.requirementNodes : [];
@@ -62,7 +82,8 @@
     const user = `AUTHORITATIVE USER MESSAGES:\n---\n${userTranscript(messages)}\n---\n\nPREVIOUS ASSISTANT QUESTIONS (NOT FACTS; use only to avoid repetition):\n---\n${assistantQuestions(messages)}\n---\n\nREQUIREMENT NODE STATE (BOOKKEEPING ONLY; NOT EVIDENCE):\n---\n${JSON.stringify(requirementNodes.map((node) => ({ key:node?.key || '', field_id:node?.field_id || '', anchor:node?.anchor || '', status:node?.status || 'unresolved' })))}\n---\n\nALREADY-ASKED REQUIREMENT NODE KEYS:\n---\n${JSON.stringify(blockedRequirementNodes)}\n---\n\nProduce one next requirement question only when its field_id + dimension_anchor node is grounded in user text, not already asked, and its answer would materially change the final prompt. If the user is explicitly asking for a recommendation/selection/comparison/choice but supplied no selection criterion, the selection-meta exception permits one question asking the user to define their own criteria.`;
     const reply = await window.ganfpuLLM.request([{ role: 'system', content: system }, { role: 'user', content: user }], 0.1);
     const parsed = parseJson(reply);
-    return { question:String(parsed.question || '').trim(), field_id:String(parsed.field_id || '').trim(), dimension:String(parsed.dimension || '').trim(), dimension_anchor:String(parsed.dimension_anchor || '').trim(), grounding_quote:String(parsed.grounding_quote || '').trim(), missing_requirement:String(parsed.missing_requirement || '').trim(), knowledge_claims:Array.isArray(parsed.knowledge_claims) ? parsed.knowledge_claims.map(String) : [], terms:Array.isArray(parsed.terms) ? parsed.terms.map(String) : [] };
+    const candidate = { question:String(parsed.question || '').trim(), field_id:String(parsed.field_id || '').trim(), dimension:String(parsed.dimension || '').trim(), dimension_anchor:String(parsed.dimension_anchor || '').trim(), grounding_quote:String(parsed.grounding_quote || '').trim(), missing_requirement:String(parsed.missing_requirement || '').trim(), knowledge_claims:Array.isArray(parsed.knowledge_claims) ? parsed.knowledge_claims.map(String) : [], terms:Array.isArray(parsed.terms) ? parsed.terms.map(String) : [] };
+    return selectionMetaFallback(messages, candidate, interviewState);
   }
 
   async function gatherEvidence(candidate, messages) { if (!window.ganfpuEvidence?.verifyTerm) return []; const terms = candidateTerms(candidate, messages); if (!terms.length) return []; return Promise.all(terms.map(async (term) => { try { return await window.ganfpuEvidence.verifyTerm(term, { limit: 5 }); } catch (error) { return { term, status:'insufficient', confidence:0, evidence:[], warnings:[String(error.message || error)] }; } })); }

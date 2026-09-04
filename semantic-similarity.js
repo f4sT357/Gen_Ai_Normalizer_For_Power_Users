@@ -95,8 +95,11 @@
 
   function candidateSemanticText(result) {
     const candidate = result?.candidate || {};
+    // Include the user-authored anchor so semantic duplicate detection
+    // represents the grounded requirement, not only the LLM wording.
     return normalize([
       result?.question,
+      candidate.dimension_anchor,
       candidate.dimension,
       candidate.missing_requirement,
     ].filter(Boolean).join(' '));

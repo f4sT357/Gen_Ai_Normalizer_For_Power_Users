@@ -12,8 +12,10 @@
   function text(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
   function userMessages(messages) { return (messages || []).filter((m) => m?.role === 'user' && !m.synthetic).map((m) => text(m.content)).filter(Boolean); }
   function selectionRequest(messages) { return /(?:おすすめ|推薦|推奨|選んで|選びたい|選択|比較|候補|どれがいい|どれが良い|どれにすべき|どれにしたら)/i.test(userMessages(messages).join('\n')); }
-  function unknownAnswer(value) { return /^(分からない|わからない|不明|未定|決めていない|決まっていない|特に決めてない|まだ分からない|まだわからない|よく分からない|よくわからない|特にない|特にありません|お任せ|おまかせ)$/i.test(text(value)); }
-  function selectionNode(state) { return (state?.requirementNodes || []).find((n) => /selection_criteria/i.test(text(n?.dimension)) || text(n?.field_id) === 'f-constraint'); }
+  function selectionNode(state) {
+    const nodes = Array.isArray(state?.requirementNodes) ? state.requirementNodes : [];
+    return nodes.find((n) => /selection_criteria/i.test(text(n?.dimension))) || nodes.find((n) => text(n?.field_id) === 'f-constraint' && /おすすめ|推薦|推奨|選ん|比較|候補/.test(text(n?.anchor)));
+  }
 
   function cacheKey(messages) {
     const users = userMessages(messages);
@@ -48,6 +50,16 @@
     return [...byUrl.values()].slice(0, MAX_RESULTS);
   }
 
+  function parseJson(textValue) {
+    const raw = String(textValue || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    try { return JSON.parse(raw); } catch (_) {
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
+      throw new Error('Knowledge extraction returned invalid JSON.');
+    }
+  }
+
   async function research(messages, state = {}) {
     if (!selectionRequest(messages)) return null;
     const node = selectionNode(state);
@@ -76,7 +88,7 @@
     const user = `USER INTENT:\n${topic}\n\nEXTERNAL SEARCH RESULTS (UNTRUSTED):\n${JSON.stringify(sources.map((s) => ({ title:s.title, snippet:s.snippet, url:s.url })))}\n\nExtract selection axes that can be presented to the user as choices. Keep each axis short and neutral.`;
     if (!window.ganfpuLLM?.request) return null;
     let parsed;
-    try { parsed = JSON.parse(await window.ganfpuLLM.request([{ role:'system', content:system }, { role:'user', content:user }], 0.1)); }
+    try { parsed = parseJson(await window.ganfpuLLM.request([{ role:'system', content:system }, { role:'user', content:user }], 0.1)); }
     catch (_) { return null; }
     const selectionAxes = Array.isArray(parsed?.selection_axes) ? parsed.selection_axes.map(text).filter(Boolean).slice(0, 8) : [];
     if (!selectionAxes.length) return null;

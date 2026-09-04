@@ -73,4 +73,12 @@
   }
 
   window.ganfpuLLM.request = guardedRequest;
+
+  // grill-engine.js is loaded after this guard. Install the source-span
+  // identity guard once the engine becomes available; it is intentionally
+  // kept separate from the LLM response guard itself.
+  const sourceGuardScript = document.createElement('script');
+  sourceGuardScript.src = 'grill-requirement-identity.js';
+  sourceGuardScript.async = false;
+  document.head.appendChild(sourceGuardScript);
 })();

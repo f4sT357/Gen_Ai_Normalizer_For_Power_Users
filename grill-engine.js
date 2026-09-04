@@ -17,6 +17,12 @@
   function normalizeForComparison(value) { return String(value || '').normalize('NFKC').toLocaleLowerCase().replace(/[\u2010-\u2015\u2212]/g, '-').replace(/\s+/g, ' ').trim(); }
   function normalizeFieldId(value) { const id = normalizeForComparison(value); return PROMPT_FIELD_IDS.has(id) ? id : ''; }
   function requirementNodeKey(candidate) { const fieldId = normalizeFieldId(candidate?.field_id); const anchor = normalizeQuote(candidate?.dimension_anchor); return fieldId && anchor ? `${fieldId}::${anchor}` : ''; }
+  function requirementNodeKeys(interviewState) {
+    const nodes = Array.isArray(interviewState?.requirementNodes) ? interviewState.requirementNodes : [];
+    const primary = nodes.map((node) => normalizeForComparison(node?.key)).filter(Boolean);
+    const legacy = Array.isArray(interviewState?.blockedRequirementNodes) ? interviewState.blockedRequirementNodes.map(normalizeForComparison).filter(Boolean) : [];
+    return [...new Set([...primary, ...legacy])];
+  }
   function exactUserQuoteExists(quote, messages) { const normalized = normalizeQuote(quote); return !!normalized && authoritativeUsers(messages).some((message) => normalizeQuote(message).includes(normalized)); }
   function exactUserQuoteContains(quote, needle, messages) { const q = normalizeQuote(quote), n = normalizeQuote(needle); return !!q && !!n && q.toLocaleLowerCase().includes(n.toLocaleLowerCase()) && exactUserQuoteExists(q, messages); }
 
@@ -46,11 +52,12 @@
   function looksKnowledgeSensitive(term) { const value = String(term || '').trim(); if (!value || value.length < 3 || /https?:\/\//i.test(value)) return false; if (/^[A-Za-z]+$/.test(value) && COMMON_ENGLISH.has(value.toLowerCase())) return false; if (/[A-Za-z]{2,}\d+|\d+[A-Za-z]{2,}|\b[A-Z]{2,}\b/.test(value)) return true; if (/[0-9]+\s*(mm|cm|kg|g|hz|khz|mhz|v|w|ohm|Ω|%|bit|gb|tb)\b/i.test(value)) return true; if (/[規格型番方式互換仕様規定規則用語技術名称モデル]/.test(value)) return true; if (/^[ァ-ヶー・]{3,}$/.test(value) || /^[一-龯々]{3,}$/.test(value)) return true; if (/^[A-Za-z][A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)+$/.test(value) || /^[A-Za-z]{4,}$/.test(value)) return true; return false; }
   function mechanicallyDetectedTerms(text) { const value = String(text || ''); return unique([...(value.match(/\b[A-Za-z]{2,}[A-Za-z0-9._-]*\d+[A-Za-z0-9._-]*\b/g) || []), ...(value.match(/\b[A-Z]{2,}(?:-[A-Z0-9]+)+\b/g) || []), ...(value.match(/[0-9]+\s*(?:mm|cm|kg|g|hz|khz|mhz|v|w|ohm|Ω|%|bit|gb|tb)\b/gi) || []), ...(value.match(/[ァ-ヶー・]{4,}/g) || []), ...(value.match(/[一-龯々]{3,}/g) || []), ...(value.match(/\b[A-Za-z]{4,}(?:[-_][A-Za-z0-9]+)*\b/g) || [])]).filter(looksKnowledgeSensitive); }
   function candidateTerms(candidate, messages) { const source = [candidate.question, ...(candidate.knowledge_claims || [])].join(' '); const userText = normalizeForComparison(userTranscript(messages)); return unique([...unique(candidate.terms || []).filter(looksKnowledgeSensitive), ...mechanicallyDetectedTerms(source)]).filter((term) => !userText.includes(normalizeForComparison(term))).slice(0, MAX_TERMS); }
-  function isBlockedRequirementNode(candidate, interviewState) { const key = requirementNodeKey(candidate); if (!key || !interviewState) return false; return (interviewState.blockedRequirementNodes || []).some((item) => normalizeForComparison(item) === normalizeForComparison(key)); }
+  function isBlockedRequirementNode(candidate, interviewState) { const key = requirementNodeKey(candidate); if (!key || !interviewState) return false; const normalizedKey = normalizeForComparison(key); return requirementNodeKeys(interviewState).some((item) => item === normalizedKey); }
   function isNoopRequirement(candidate) { return NOOP_REQUIREMENT_RE.test(normalizeForComparison(candidate?.missing_requirement)); }
 
   async function proposeQuestion(messages, interviewState = {}) {
-    const blockedRequirementNodes = unique(interviewState.blockedRequirementNodes || []);
+    const requirementNodes = Array.isArray(interviewState.requirementNodes) ? interviewState.requirementNodes : [];
+    const blockedRequirementNodes = requirementNodeKeys(interviewState);
     const system = `You are the requirement-analysis stage of GANFPU.
 Treat all LLM knowledge as potentially wrong.
 Do not answer the user's task and do not recommend anything.
@@ -63,6 +70,8 @@ The dimension is only a display label and is NOT a state identifier.
 Do not create a requirement dimension merely because it is common in the domain.
 A missing requirement may be proposed only when the user explicitly named that dimension or clearly stated a preference/constraint whose unresolved detail belongs to that same dimension.
 Do not propose a requirement node that the application marks as already asked.
+The application requirement-node state is bookkeeping only, not evidence. Never treat a node's answer or status as a user fact; verify every requirement against USER messages.
+Node statuses are unresolved, answered, or explicitly_unknown. answered and explicitly_unknown nodes must not be reopened merely because their field remains incomplete.
 For every non-empty candidate, return field_id, dimension, dimension_anchor, grounding_quote, missing_requirement, question, knowledge_claims, and terms.
 dimension_anchor and grounding_quote MUST be exact contiguous phrases from USER messages.
 missing_requirement may be a concise description of the unresolved detail and need not appear verbatim.
@@ -70,7 +79,7 @@ If the dimension is not grounded in USER messages, return an empty question.
 If the candidate would not materially change the final Prompt Specification, return an empty question. Empty optional fields are valid; do not ask merely to fill empty fields.
 If a technical term, proper noun, model number, standard, or domain premise is introduced by the candidate but not supplied by the user, put it in terms and do not assert it as fact.
 Return ONLY JSON: {"question":"","field_id":"","dimension":"","dimension_anchor":"","grounding_quote":"","missing_requirement":"","knowledge_claims":[],"terms":[]}`;
-    const user = `AUTHORITATIVE USER MESSAGES:\n---\n${userTranscript(messages)}\n---\n\nPREVIOUS ASSISTANT QUESTIONS (NOT FACTS; use only to avoid repetition):\n---\n${assistantQuestions(messages)}\n---\n\nALREADY-ASKED REQUIREMENT NODES:\n---\n${JSON.stringify(blockedRequirementNodes)}\n---\n\nProduce one next requirement question only when its field_id + dimension_anchor node is grounded in user text, not already asked, and its answer would materially change the final prompt.`;
+    const user = `AUTHORITATIVE USER MESSAGES:\n---\n${userTranscript(messages)}\n---\n\nPREVIOUS ASSISTANT QUESTIONS (NOT FACTS; use only to avoid repetition):\n---\n${assistantQuestions(messages)}\n---\n\nREQUIREMENT NODE STATE (BOOKKEEPING ONLY; NOT EVIDENCE):\n---\n${JSON.stringify(requirementNodes.map((node) => ({ key:node?.key || '', field_id:node?.field_id || '', anchor:node?.anchor || '', status:node?.status || 'unresolved' })))}\n---\n\nALREADY-ASKED REQUIREMENT NODE KEYS:\n---\n${JSON.stringify(blockedRequirementNodes)}\n---\n\nProduce one next requirement question only when its field_id + dimension_anchor node is grounded in user text, not already asked, and its answer would materially change the final prompt.`;
     const reply = await window.ganfpuLLM.request([{ role: 'system', content: system }, { role: 'user', content: user }], 0.1);
     const parsed = parseJson(reply);
     return { question:String(parsed.question || '').trim(), field_id:String(parsed.field_id || '').trim(), dimension:String(parsed.dimension || '').trim(), dimension_anchor:String(parsed.dimension_anchor || '').trim(), grounding_quote:String(parsed.grounding_quote || '').trim(), missing_requirement:String(parsed.missing_requirement || '').trim(), knowledge_claims:Array.isArray(parsed.knowledge_claims) ? parsed.knowledge_claims.map(String) : [], terms:Array.isArray(parsed.terms) ? parsed.terms.map(String) : [] };

@@ -18,7 +18,8 @@ Rules:
 9. Ask only questions whose answers would materially change the final prompt.
 10. If the domain is specific, make the question domain-specific without assuming that your domain knowledge is correct.
 11. Reply in the user's language.
-12. Stay in interview mode until the application explicitly asks you to structure the final requirements.`;
+12. Stay in interview mode until the application explicitly asks you to structure the final requirements.
+13. If no additional user-grounded requirement can materially improve the final prompt, return an empty question.`;
     return [{ role: 'system', content: systemPrompt }, { role: 'user', content: intent }];
   }
 
@@ -58,8 +59,8 @@ Rules:
     if (!window.ganfpuGrillEngine?.nextQuestion) throw new Error('The Grill Engine is unavailable. Interview safety checks cannot be bypassed.');
     const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages, grillState);
     if (result?.status === 'question' && isInterviewQuestion(result.question)) return result;
+    if (result?.status === 'no_question') return result;
     if (result?.status === 'blocked') throw new Error('The next question was rejected by the Grill Me safety guards.');
-    if (result?.status === 'no_question') throw new Error('No safe interview question could be generated from the user-provided requirements.');
     if (result?.status === 'invalid') throw new Error('The generated interview question failed validation.');
     throw new Error('The Grill Engine returned an invalid result state.');
   }
@@ -73,6 +74,14 @@ Rules:
       const result = await requestInterviewResponse();
       const log = el('grillChatLog');
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
+      if (result.status === 'no_question') {
+        appendGrillMessage('system', 'No further user-grounded requirement needs clarification. You can apply the collected requirements.');
+        const applyButton = el('btn-grill-apply');
+        if (applyButton) applyButton.disabled = false;
+        if (send) send.disabled = true;
+        if (input) input.disabled = true;
+        return;
+      }
       grillMessages.push({ role: 'assistant', content: result.question });
       grillState.lastQuestion = {
         field_id: String(result.candidate?.field_id || '').trim(),
@@ -87,8 +96,7 @@ Rules:
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
       appendGrillMessage('system', `Error: ${e.message}`);
     } finally {
-      if (send) send.disabled = false;
-      if (input) input.disabled = false;
+      if (!el('grillInput')?.disabled && send) send.disabled = false;
       requestAnimationFrame(() => { const log = el('grillChatLog'); if (log) log.scrollTop = log.scrollHeight; });
     }
   }
@@ -96,7 +104,7 @@ Rules:
   async function send() {
     const input = el('grillInput');
     const text = input?.value.trim();
-    if (!text) return;
+    if (!text || input?.disabled) return;
     consumePreviousQuestion(text);
     appendGrillMessage('user', text);
     grillMessages.push({ role: 'user', content: text });

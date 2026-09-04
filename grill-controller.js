@@ -31,10 +31,9 @@ Rules:
   }
 
   function normalizeStateValue(value) { return String(value || '').normalize('NFKC').toLocaleLowerCase().replace(/\s+/g, ' ').trim(); }
-  function normalizeNodeKey(fieldId, anchor) {
-    const field = normalizeStateValue(fieldId);
-    const source = String(anchor || '').replace(/\s+/g, ' ').trim();
-    return promptFieldIds.has(field) && source ? `${field}::${source}` : '';
+  function requirementNodeKey(fieldId, anchor) {
+    if (!window.ganfpuGrillEngine?.requirementNodeKey) return '';
+    return window.ganfpuGrillEngine.requirementNodeKey({ field_id: fieldId, dimension_anchor: anchor });
   }
   function isUnresolvedAnswer(text) {
     const normalized = normalizeStateValue(text);
@@ -46,7 +45,7 @@ Rules:
       .map((node) => node.key);
   }
   function upsertRequirementNode(candidate) {
-    const key = normalizeNodeKey(candidate?.field_id, candidate?.dimension_anchor);
+    const key = requirementNodeKey(candidate?.field_id, candidate?.dimension_anchor);
     if (!key) return '';
     const existing = grillState.requirementNodes.find((node) => normalizeStateValue(node.key) === normalizeStateValue(key));
     if (existing) return key;
@@ -65,7 +64,7 @@ Rules:
   function resolveLastQuestion(answer) {
     const last = grillState.lastQuestion;
     if (!last) return;
-    const key = normalizeNodeKey(last.field_id, last.dimension_anchor);
+    const key = requirementNodeKey(last.field_id, last.dimension_anchor);
     const node = grillState.requirementNodes.find((item) => normalizeStateValue(item.key) === normalizeStateValue(key));
     if (!node) { grillState.lastQuestion = null; return; }
     node.status = isUnresolvedAnswer(answer) ? 'explicitly_unknown' : 'answered';

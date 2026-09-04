@@ -292,32 +292,44 @@ If provenance is invalid, output an empty string.`;
     if (!candidate.question || !candidate.dimension || !candidate.missing_requirement) return false;
     if (!candidate.dimension_anchor || !exactUserQuoteExists(candidate.dimension_anchor, messages)) return false;
     if (!candidate.grounding_quote || !exactUserQuoteExists(candidate.grounding_quote, messages)) return false;
-    // The grounding quote must belong to the same user-grounded dimension.
     if (!exactUserQuoteContains(candidate.grounding_quote, candidate.dimension_anchor, messages)) return false;
     return true;
   }
 
   async function nextQuestion(messages, interviewState = {}) {
     const candidate = await proposeQuestion(messages, interviewState);
-    if (!validateCandidate(candidate, messages)) return { question: '', candidate, evidence: [] };
-    if (isBlockedDimension(candidate, interviewState)) return { question: '', candidate, evidence: [] };
+    if (!validateCandidate(candidate, messages)) {
+      return { status: 'no_question', reason: 'candidate_not_grounded', question: '', candidate, evidence: [] };
+    }
+    if (isBlockedDimension(candidate, interviewState)) {
+      return { status: 'blocked', reason: 'dimension_already_asked', question: '', candidate, evidence: [] };
+    }
 
     const terms = candidateTerms(candidate, messages);
     const evidence = await gatherEvidence(candidate, messages);
-    if (terms.length && !evidence.length) return { question: '', candidate, evidence: [] };
-    if (evidence.some((item) => item.status !== 'supported')) return { question: '', candidate, evidence };
+    if (terms.length && !evidence.length) {
+      return { status: 'blocked', reason: 'evidence_unavailable', question: '', candidate, evidence: [] };
+    }
+    if (evidence.some((item) => item.status !== 'supported')) {
+      return { status: 'blocked', reason: 'evidence_insufficient', question: '', candidate, evidence };
+    }
 
     if (!evidence.length) {
-      if (isDuplicateQuestion(candidate.question, messages)) return { question: '', candidate, evidence };
-      return { question: candidate.question, candidate, evidence };
+      if (isDuplicateQuestion(candidate.question, messages)) {
+        return { status: 'blocked', reason: 'duplicate_question', question: '', candidate, evidence };
+      }
+      return { status: 'question', question: candidate.question, candidate, evidence };
     }
 
     const question = await generateQuestion(messages, candidate, evidence);
-    if (!question || isDuplicateQuestion(question, messages)) return { question: '', candidate, evidence };
-    if (containsUnsupportedTerm(question, evidence)) {
-      throw new Error('Generated question contains a term that could not be externally verified.');
+    if (!question) return { status: 'invalid', reason: 'empty_generated_question', question: '', candidate, evidence };
+    if (isDuplicateQuestion(question, messages)) {
+      return { status: 'blocked', reason: 'duplicate_question', question: '', candidate, evidence };
     }
-    return { question, candidate, evidence };
+    if (containsUnsupportedTerm(question, evidence)) {
+      return { status: 'blocked', reason: 'unsupported_term_in_question', question: '', candidate, evidence };
+    }
+    return { status: 'question', question, candidate, evidence };
   }
 
   window.ganfpuGrillEngine = {

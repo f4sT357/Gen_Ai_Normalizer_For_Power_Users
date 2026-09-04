@@ -3,7 +3,7 @@
   let grillMessages = [];
   let grillState = {
     blockedAnchors: [],
-    blockedDimensions: [],
+    blockedDimensionIds: [],
     lastQuestion: null,
   };
 
@@ -52,9 +52,6 @@ Rules:
       .trim();
   }
 
-  // Only explicit uncertainty reopens the previous dimension.
-  // "特にない", "ありません", "お任せ" etc. are valid answers meaning
-  // that the user has no additional requirement; they must not reopen the dimension.
   function isUnresolvedAnswer(text) {
     const normalized = normalizeStateValue(text);
     if (!normalized) return false;
@@ -64,12 +61,12 @@ Rules:
   function addBlockedQuestion(candidate) {
     if (!candidate) return;
     const anchor = String(candidate.dimension_anchor || '').trim();
-    const dimension = String(candidate.dimension || '').trim();
+    const dimensionId = normalizeStateValue(candidate.dimension_id);
     if (anchor && !grillState.blockedAnchors.includes(anchor)) {
       grillState.blockedAnchors.push(anchor);
     }
-    if (dimension && !grillState.blockedDimensions.some((item) => normalizeStateValue(item) === normalizeStateValue(dimension))) {
-      grillState.blockedDimensions.push(dimension);
+    if (dimensionId && !grillState.blockedDimensionIds.includes(dimensionId)) {
+      grillState.blockedDimensionIds.push(dimensionId);
     }
   }
 
@@ -77,9 +74,9 @@ Rules:
     const last = grillState.lastQuestion;
     if (!last) return;
     const anchor = String(last.dimension_anchor || '').trim();
-    const dimension = normalizeStateValue(last.dimension || '');
+    const dimensionId = normalizeStateValue(last.dimension_id);
     grillState.blockedAnchors = grillState.blockedAnchors.filter((item) => item !== anchor);
-    grillState.blockedDimensions = grillState.blockedDimensions.filter((item) => normalizeStateValue(item) !== dimension);
+    grillState.blockedDimensionIds = grillState.blockedDimensionIds.filter((item) => item !== dimensionId);
   }
 
   function consumePreviousQuestion(answer) {
@@ -95,21 +92,14 @@ Rules:
     }
     const result = await window.ganfpuGrillEngine.nextQuestion(grillMessages, grillState);
     if (result?.status === 'question' && isInterviewQuestion(result.question)) return result;
-    if (result?.status === 'blocked') {
-      throw new Error('The next question was rejected by the Grill Me safety guards.');
-    }
-    if (result?.status === 'no_question') {
-      throw new Error('No safe interview question could be generated from the user-provided requirements.');
-    }
-    if (result?.status === 'invalid') {
-      throw new Error('The generated interview question failed validation.');
-    }
+    if (result?.status === 'blocked') throw new Error('The next question was rejected by the Grill Me safety guards.');
+    if (result?.status === 'no_question') throw new Error('No safe interview question could be generated from the user-provided requirements.');
+    if (result?.status === 'invalid') throw new Error('The generated interview question failed validation.');
     throw new Error('The Grill Engine returned an invalid result state.');
   }
 
   async function respond() {
-    const send = el('btn-grill-send'),
-      input = el('grillInput');
+    const send = el('btn-grill-send'), input = el('grillInput');
     if (send) send.disabled = true;
     if (input) input.disabled = true;
     appendGrillMessage('system', 'Thinking...');
@@ -119,6 +109,7 @@ Rules:
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
       grillMessages.push({ role: 'assistant', content: result.question });
       grillState.lastQuestion = {
+        dimension_id: normalizeStateValue(result.candidate?.dimension_id),
         dimension: String(result.candidate?.dimension || '').trim(),
         dimension_anchor: String(result.candidate?.dimension_anchor || '').trim(),
         question: result.question,
@@ -162,45 +153,30 @@ Rules:
     el('grillChatLog').innerHTML = '';
     el('grillInput').value = '';
     grillMessages = buildInitialConversation(intent);
-    grillState = {
-      blockedAnchors: [],
-      blockedDimensions: [],
-      lastQuestion: null,
-    };
-    appendGrillMessage(
-      'system',
-      `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`
-    );
+    grillState = { blockedAnchors: [], blockedDimensionIds: [], lastQuestion: null };
+    appendGrillMessage('system', `Using ${window.ganfpuLLM.getProviderLabel()} · ${window.ganfpuLLM.getModel()}`);
     await respond();
   }
 
   async function copyText(text) {
     if (!text) return false;
     if (navigator.clipboard && window.isSecureContext) {
-      try {
-        await navigator.clipboard.writeText(text);
-        return true;
-      } catch (e) {}
+      try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
     }
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.setAttribute('readonly', '');
     ta.style.cssText = 'position:fixed;top:0;left:-9999px;width:1px;height:1px;opacity:0';
     document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    ta.setSelectionRange(0, ta.value.length);
+    ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);
     let copied = false;
-    try {
-      copied = document.execCommand('copy');
-    } catch (e) {}
+    try { copied = document.execCommand('copy'); } catch (e) {}
     ta.remove();
     return copied;
   }
 
   async function copyResult() {
-    const result = el('normal-result'),
-      preview = el('preview');
+    const result = el('normal-result'), preview = el('preview');
     const text = result?.textContent.trim() || preview?.textContent.trim() || '';
     if (!text || preview?.querySelector('.preview-placeholder')) {
       showToast('Nothing to copy.');
@@ -214,19 +190,10 @@ Rules:
     return grillMessages.filter((message) => message.role === 'user' && !message.synthetic);
   }
 
-  function userTranscript() {
-    return userMessages()
-      .map((message) => message.content)
-      .join('\n');
-  }
-
   function extractJson(text) {
     const raw = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-    try {
-      return JSON.parse(raw);
-    } catch (error) {
-      const start = raw.indexOf('{');
-      const end = raw.lastIndexOf('}');
+    try { return JSON.parse(raw); } catch (error) {
+      const start = raw.indexOf('{'), end = raw.lastIndexOf('}');
       if (start >= 0 && end > start) return JSON.parse(raw.slice(start, end + 1));
       throw error;
     }
@@ -239,9 +206,7 @@ Rules:
   function sourceExistsInUserMessage(source, authoritativeUserMessages) {
     const normalizedSource = normalizeSource(source);
     if (!normalizedSource) return false;
-    return authoritativeUserMessages.some((message) =>
-      normalizeSource(message.content).includes(normalizedSource)
-    );
+    return authoritativeUserMessages.some((message) => normalizeSource(message.content).includes(normalizedSource));
   }
 
   function sourceBackedValue(value, source, authoritativeUserMessages) {
@@ -253,18 +218,13 @@ Rules:
   }
 
   function valueForSourceCheck(id, value) {
-    if (id === 'f-hallucination') {
-      return normalizeSource(value).replace(/^カスタム:\s*/i, '');
-    }
+    if (id === 'f-hallucination') return normalizeSource(value).replace(/^カスタム:\s*/i, '');
     return normalizeSource(value);
   }
 
   async function apply() {
     if (!window.ganfpuLLM || !window.ganfpuLLM.ensureReady()) return;
     appendGrillMessage('system', 'Structuring requirements into Prompt Specification...');
-
-    // Snapshot actual user-authored turns before adding the application-generated
-    // structuring instruction. Only this snapshot is authoritative evidence.
     const authoritativeUserMessages = userMessages().map((message) => ({ ...message }));
     const instruction = `Based ONLY on the current Grill Me conversation, extract the final requirements into this JSON format.
 The user messages are the authoritative source. Assistant messages are questions only and MUST NOT be treated as facts or requirements.
@@ -293,10 +253,7 @@ Output ONLY valid JSON, with every key present.
     try {
       const reply = (await window.ganfpuLLM.request(grillMessages, 0.2)).trim();
       const parsed = extractJson(reply);
-      const fields = [
-        'f-role', 'f-task', 'f-context', 'f-constraint', 'f-format',
-        'f-tone', 'f-length', 'f-reasoning', 'f-lang', 'f-hallucination',
-      ];
+      const fields = ['f-role','f-task','f-context','f-constraint','f-format','f-tone','f-length','f-reasoning','f-lang','f-hallucination'];
       fields.forEach((id) => {
         const field = el(id);
         if (!field) return;
@@ -304,51 +261,26 @@ Output ONLY valid JSON, with every key present.
         const value = typeof entry.value === 'string' ? entry.value.trim() : '';
         const source = typeof entry.source === 'string' ? entry.source.trim() : '';
         const sourceValue = valueForSourceCheck(id, value);
-
-        // The hallucination policy has an application-defined default. It does not need
-        // user evidence, unlike every other extracted requirement.
-        const isDefaultHallucinationPolicy =
-          id === 'f-hallucination' && value === '指定なし' && !source;
-
-        if ((!value || (!source && !isDefaultHallucinationPolicy)) ||
-            (source && !sourceBackedValue(sourceValue, source, authoritativeUserMessages))) {
+        const isDefaultHallucinationPolicy = id === 'f-hallucination' && value === '指定なし' && !source;
+        if ((!value || (!source && !isDefaultHallucinationPolicy)) || (source && !sourceBackedValue(sourceValue, source, authoritativeUserMessages))) {
           field.value = '';
           const custom = el(id + '-custom');
-          if (custom) {
-            custom.value = '';
-            custom.style.display = 'none';
-          }
+          if (custom) { custom.value = ''; custom.style.display = 'none'; }
           return;
         }
-
         if (field.tagName === 'SELECT') {
           const matchingOption = [...field.options].find((o) => o.value === value);
-          if (matchingOption) {
-            field.value = matchingOption.value;
-          } else if (id === 'f-format' || id === 'f-hallucination') {
-            // Only fields with an actual custom input may receive a custom value.
+          if (matchingOption) field.value = matchingOption.value;
+          else if (id === 'f-format' || id === 'f-hallucination') {
             field.value = 'custom';
             const custom = el(id + '-custom');
-            if (custom) {
-              custom.value = value.replace(/^カスタム:\s*/, '');
-              custom.style.display = 'block';
-            }
-          } else {
-            field.value = '';
-          }
-        } else {
-          field.value = value;
-        }
+            if (custom) { custom.value = value.replace(/^カスタム:\s*/, ''); custom.style.display = 'block'; }
+          } else field.value = '';
+        } else field.value = value;
       });
-
       update();
-      const preview = el('preview'),
-        result = el('normal-result'),
-        wrap = el('normal-result-wrap');
-      if (
-        preview && result && wrap && preview.textContent.trim() &&
-        !preview.querySelector('.preview-placeholder')
-      ) {
+      const preview = el('preview'), result = el('normal-result'), wrap = el('normal-result-wrap');
+      if (preview && result && wrap && preview.textContent.trim() && !preview.querySelector('.preview-placeholder')) {
         result.textContent = preview.textContent.trim();
         wrap.hidden = false;
       }
@@ -362,63 +294,36 @@ Output ONLY valid JSON, with every key present.
   }
 
   function bind() {
-    const sendButton = el('btn-grill-send'),
-      applyButton = el('btn-grill-apply');
+    const sendButton = el('btn-grill-send'), applyButton = el('btn-grill-apply');
     if (!sendButton || !applyButton || !window.ganfpuLLM) return false;
-
     const freshSend = sendButton.cloneNode(true);
-    freshSend.removeAttribute('onclick');
-    sendButton.replaceWith(freshSend);
-    freshSend.onclick = send;
-
+    freshSend.removeAttribute('onclick'); sendButton.replaceWith(freshSend); freshSend.onclick = send;
     const grillInput = el('grillInput');
     if (grillInput) {
       const freshInput = grillInput.cloneNode(true);
-      freshInput.removeAttribute('onkeydown');
-      grillInput.replaceWith(freshInput);
-      freshInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          send();
-        }
-      });
+      freshInput.removeAttribute('onkeydown'); grillInput.replaceWith(freshInput);
+      freshInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
     }
-
     const freshApply = applyButton.cloneNode(true);
-    freshApply.removeAttribute('onclick');
-    applyButton.replaceWith(freshApply);
-    freshApply.onclick = apply;
-
+    freshApply.removeAttribute('onclick'); applyButton.replaceWith(freshApply); freshApply.onclick = apply;
     const resultCopy = el('normal-result-copy');
     if (resultCopy) {
       const freshCopy = resultCopy.cloneNode(true);
-      freshCopy.removeAttribute('onclick');
-      resultCopy.replaceWith(freshCopy);
-      freshCopy.onclick = copyResult;
+      freshCopy.removeAttribute('onclick'); resultCopy.replaceWith(freshCopy); freshCopy.onclick = copyResult;
     }
     window.applyGrillMeResult = apply;
     window.closeGrillMe = () => {
       const modal = el('grillModal');
       if (modal) modal.style.display = 'none';
       grillMessages = [];
-      grillState = {
-        blockedAnchors: [],
-        blockedDimensions: [],
-        lastQuestion: null,
-      };
+      grillState = { blockedAnchors: [], blockedDimensionIds: [], lastQuestion: null };
     };
     const closeButtons = [el('btn-grill-close'), document.querySelector('.modal-close-btn')];
-    closeButtons.forEach((button) => {
-      if (button) button.addEventListener('click', window.closeGrillMe);
-    });
+    closeButtons.forEach((button) => { if (button) button.addEventListener('click', window.closeGrillMe); });
     return true;
   }
 
-  function init() {
-    if (bind()) return;
-    setTimeout(init, 100);
-  }
-
+  function init() { if (bind()) return; setTimeout(init, 100); }
   window.ganfpuStartGrill = start;
   window.ganfpuApplyGrillResult = apply;
   init();

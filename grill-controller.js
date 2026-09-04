@@ -42,7 +42,7 @@ Rules:
   }
   function syncBlockedRequirementNodes() {
     grillState.blockedRequirementNodes = grillState.requirementNodes
-      .filter((node) => node && node.key && node.status !== 'unresolved')
+      .filter((node) => node && node.key)
       .map((node) => node.key);
   }
   function upsertRequirementNode(candidate) {

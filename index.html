@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GANFPU - Generative AI Normalizer For Power User</title>
+    <title>GANFPU - Generative AI Normalizer For Power Users</title>
     <meta name="description" content="A local-first, multi-language prompt engineering engine for power users to standardize AI prompt composition." />
     <meta name="theme-color" content="#7c3aed" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -25,23 +25,13 @@
         <div class="logo">GANFPU <span id="hdr-subtitle"></span></div>
         <div class="header-right">
           <div class="lang-toggle">
-            <button class="lang-btn" id="btn-ja" onclick="setLang('ja')">JA</button>
-            <button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button>
-            <button class="lang-btn" id="btn-zh" onclick="setLang('zh')">ZH</button>
-            <button class="lang-btn" id="btn-ko" onclick="setLang('ko')">KO</button>
-            <button class="lang-btn" id="btn-es" onclick="setLang('es')">ES</button>
-            <button class="lang-btn" id="btn-fr" onclick="setLang('fr')">FR</button>
+            <button class="lang-btn" id="btn-ja" onclick="setLang('ja')">JA</button><button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button><button class="lang-btn" id="btn-zh" onclick="setLang('zh')">ZH</button><button class="lang-btn" id="btn-ko" onclick="setLang('ko')">KO</button><button class="lang-btn" id="btn-es" onclick="setLang('es')">ES</button><button class="lang-btn" id="btn-fr" onclick="setLang('fr')">FR</button>
           </div>
           <div class="version-tag">v2.0 · MODULAR</div>
         </div>
       </header>
 
-      <div class="score-bar">
-        <div class="score-label">QUALITY SCORE</div>
-        <div class="score-track"><div class="score-fill" id="scoreFill"></div></div>
-        <div class="score-num" id="scoreNum">0%</div>
-        <div class="score-hint" id="scoreHint"></div>
-      </div>
+      <div class="score-bar"><div class="score-label">QUALITY SCORE</div><div class="score-track"><div class="score-fill" id="scoreFill"></div></div><div class="score-num" id="scoreNum">0%</div><div class="score-hint" id="scoreHint"></div></div>
 
       <div class="main-grid">
         <div class="left-col">
@@ -59,33 +49,15 @@
         </div>
 
         <div class="right-panel">
-          <div class="panel-card" id="lm-panel">
-            <div class="panel-title" id="title-lm-connect">LM Studio Link</div>
-            <div class="lm-row" style="display:flex;gap:8px"><input type="text" id="lm-endpoint" value="http://localhost:1234/v1" style="flex:1" /><button class="btn btn-secondary btn-sm" id="btn-lm-fetch" onclick="fetchLMModels()" style="white-space:nowrap;height:38px">Fetch</button></div>
-            <div class="lm-row" style="margin-top:10px"><select id="lm-model-select" onchange="onLMModelChange()"><option value="" id="opt-lm-placeholder">-- Select Model --</option></select></div>
-            <div class="lm-actions-row" id="lm-actions-area" style="display:none;margin-top:10px"><button class="btn btn-primary" id="btn-grill-me" onclick="startGrillMe()" style="width:100%;justify-content:center;display:flex;align-items:center;gap:6px;font-weight:bold">🔥 Grill Me</button></div>
-          </div>
-
-          <div class="panel-card">
-            <div class="panel-title">PREVIEW <button class="preview-edit-toggle" id="editToggle" onclick="toggleEditMode()"></button></div>
-            <div class="preview-area" id="preview"></div>
-            <div class="char-count" id="charCount"></div>
-            <div class="prompt-actions"><button class="btn btn-primary copy-btn" id="copyBtn" onclick="copyPrompt()"><span id="copy-text"></span></button><button class="btn btn-download" id="downloadBtn" onclick="downloadPrompt()"><span id="download-text"></span></button><button class="btn btn-share" id="shareBtn" onclick="sharePrompt()" style="display:none"><span id="share-text"></span></button></div>
-            <div class="shortcut-hint" id="shortcut-hint"></div>
-          </div>
-
-          <div class="panel-card">
-            <div class="panel-title">TEMPLATES</div><div class="cat-filter" id="catFilter"></div><div class="template-list" id="templateList"><div class="empty-state" id="emptyState"></div></div>
-            <div class="template-save-row"><input type="text" id="templateName" /><button class="btn btn-secondary btn-sm" id="btn-save" onclick="saveTemplate()"></button></div>
-            <div class="export-row"><button class="btn btn-secondary btn-sm" id="btn-export" onclick="exportTemplates()"></button><button class="btn btn-secondary btn-sm" id="btn-share-tmpl" onclick="shareTemplates()" style="display:none"></button><label class="btn btn-secondary btn-sm" id="btn-import-label" style="cursor:pointer;margin:0;justify-content:center"><span id="btn-import-text"></span><input type="file" accept=".json" onchange="importTemplates(event)" style="display:none" /></label></div>
-          </div>
+          <div class="panel-card" id="lm-panel"><div class="panel-title" id="title-lm-connect">LM Studio Link</div><div class="lm-row" style="display:flex;gap:8px"><input type="text" id="lm-endpoint" value="http://localhost:1234/v1" style="flex:1" /><button class="btn btn-secondary btn-sm" id="btn-lm-fetch" onclick="fetchLMModels()" style="white-space:nowrap;height:38px">Fetch</button></div><div class="lm-row" style="margin-top:10px"><select id="lm-model-select" onchange="onLMModelChange()"><option value="" id="opt-lm-placeholder">-- Select Model --</option></select></div><div class="lm-actions-row" id="lm-actions-area" style="display:none;margin-top:10px"><button class="btn btn-primary" id="btn-grill-me" onclick="startGrillMe()" style="width:100%;justify-content:center;display:flex;align-items:center;gap:6px;font-weight:bold">🔥 Grill Me</button></div></div>
+          <div class="panel-card"><div class="panel-title">PREVIEW <button class="preview-edit-toggle" id="editToggle" onclick="toggleEditMode()"></button></div><div class="preview-area" id="preview"></div><div class="char-count" id="charCount"></div><div class="prompt-actions"><button class="btn btn-primary copy-btn" id="copyBtn" onclick="copyPrompt()"><span id="copy-text"></span></button><button class="btn btn-download" id="downloadBtn" onclick="downloadPrompt()"><span id="download-text"></span></button><button class="btn btn-share" id="shareBtn" onclick="sharePrompt()" style="display:none"><span id="share-text"></span></button></div><div class="shortcut-hint" id="shortcut-hint"></div></div>
+          <div class="panel-card"><div class="panel-title">TEMPLATES</div><div class="cat-filter" id="catFilter"></div><div class="template-list" id="templateList"><div class="empty-state" id="emptyState"></div></div><div class="template-save-row"><input type="text" id="templateName" /><button class="btn btn-secondary btn-sm" id="btn-save" onclick="saveTemplate()"></button></div><div class="export-row"><button class="btn btn-secondary btn-sm" id="btn-export" onclick="exportTemplates()"></button><button class="btn btn-secondary btn-sm" id="btn-share-tmpl" onclick="shareTemplates()" style="display:none"></button><label class="btn btn-secondary btn-sm" id="btn-import-label" style="cursor:pointer;margin:0;justify-content:center"><span id="btn-import-text"></span><input type="file" accept=".json" onchange="importTemplates(event)" style="display:none" /></label></div></div>
         </div>
       </div>
     </div>
 
     <div class="toast" id="toast"></div>
     <div class="modal-overlay" id="grillModal" style="display:none"><div class="modal-card grill-card"><div class="modal-header"><div class="modal-title" id="grill-title-text">🔥 Grill Me</div><button class="modal-close-btn">×</button></div><div class="modal-body grill-body"><div class="grill-chat-log" id="grillChatLog"></div><div class="grill-input-row"><textarea id="grillInput" rows="2" style="resize:none"></textarea><button class="btn btn-primary" id="btn-grill-send" style="height:auto;align-self:stretch">Send</button></div></div><div class="modal-footer"><button class="btn btn-success" id="btn-grill-apply"></button><button class="btn btn-secondary" id="btn-grill-close"></button></div></div></div>
-
     <button id="btn-grill-debug-copy" type="button" onclick="window.ganfpuGrillDebug && window.ganfpuGrillDebug.copy()" title="Copy Grill Engine diagnostics" style="position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:600 13px sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.2);cursor:pointer;">Copy Debug Log</button>
 
     <script src="app.js"></script>
@@ -99,6 +71,12 @@
     <script src="grill-engine.js"></script>
     <script src="grill-unknown-answer-compat.js"></script>
     <script src="semantic-similarity.js"></script>
+    <script src="core/requirement-model.js"></script>
+    <script src="core/intent-analyzer.js"></script>
+    <script src="core/requirement-extractor.js"></script>
+    <script src="core/requirement-discovery.js"></script>
+    <script src="core/knowledge-discovery.js"></script>
+    <script src="core/orchestrator.js"></script>
     <script src="grill-controller.js"></script>
     <script src="grill-debug.js"></script>
     <script src="history.js"></script>

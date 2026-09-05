@@ -1,149 +1,16 @@
 (() => {
   'use strict';
-
   const modelApi = () => window.ganfpuRequirementModel;
-
-  function text(value) {
-    return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
-  }
-
-  function users(messages) {
-    return (Array.isArray(messages) ? messages : [])
-      .filter((message) => message?.role === 'user' && !message?.synthetic)
-      .map((message) => text(message.content))
-      .filter(Boolean);
-  }
-
-  function fingerprint(question) {
-    return text(question).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
-  }
-
-  function isDuplicateQuestion(question, discovery) {
-    const key = fingerprint(question);
-    if (!key) return true;
-    return (Array.isArray(discovery?.asked) ? discovery.asked : [])
-      .some((item) => fingerprint(item?.question) === key);
-  }
-
-  function targetAlreadyKnown(target, requirements) {
-    const api = modelApi();
-    if (!api || !target) return false;
-    return (Array.isArray(requirements) ? requirements : []).some((requirement) =>
-      text(requirement?.status) === 'confirmed' &&
-      text(requirement?.field_id) === text(target.field_id) &&
-      text(requirement?.dimension) === text(target.dimension)
-    );
-  }
-
-  function validateAction(action, model, discovery) {
-    const type = text(action?.type);
-    if (type !== 'ask_user') return { valid: false, reason: 'unsupported_action' };
-
-    const question = text(action.question);
-    const fieldId = text(action?.target?.field_id);
-    const dimension = text(action?.target?.dimension);
-    if (!question || !fieldId || !dimension) return { valid: false, reason: 'incomplete_action' };
-    if (isDuplicateQuestion(question, discovery)) return { valid: false, reason: 'question_already_asked' };
-
-    const api = modelApi();
-    if (!api || !api.FIELD_IDS?.includes(fieldId)) {
-      return { valid: false, reason: 'invalid_field_id' };
-    }
-
-    if (targetAlreadyKnown({ field_id: fieldId, dimension }, model?.requirements)) {
-      return { valid: false, reason: 'target_already_confirmed' };
-    }
-
-    return { valid: true };
-  }
-
-  function heuristicAction(messages, model, discovery) {
-    const input = users(messages).join('\n');
-    const requirements = Array.isArray(model?.requirements) ? model.requirements : [];
-
-    if (!input) return null;
-
-    if (text(model?.intent?.task_type) === 'recommendation' || /(?:おすすめ|推薦|推奨|選んで|選びたい)/i.test(input)) {
-      if (!targetAlreadyKnown({ field_id: 'f-context', dimension: 'usage' }, requirements)) {
-        return {
-          type: 'ask_user',
-          id: nextActionId(discovery),
-          question: 'どのような用途で使うものを探していますか？',
-          target: { field_id: 'f-context', dimension: 'usage' }
-        };
-      }
-      if (!targetAlreadyKnown({ field_id: 'f-constraint', dimension: 'selection_criteria' }, requirements)) {
-        return {
-          type: 'ask_user',
-          id: nextActionId(discovery),
-          question: '選ぶ際に重視したい条件はありますか？',
-          target: { field_id: 'f-constraint', dimension: 'selection_criteria' }
-        };
-      }
-    }
-
-    return null;
-  }
-
-  function nextActionId(discovery) {
-    const count = Array.isArray(discovery?.asked) ? discovery.asked.length : 0;
-    return `action_${String(count + 1).padStart(2, '0')}`;
-  }
-
-  function buildPrompt(messages, model, discovery) {
-    return [
-      'Choose the single highest-value next user question for requirement discovery.',
-      'This component generates an action, not facts or recommendations.',
-      'User messages are authoritative evidence. Assistant messages are only previous questions.',
-      'Do not invent user preferences, domain facts, technical specifications, or solutions.',
-      'Ask only for a requirement that materially affects the user goal.',
-      'Use exactly one of the fixed field IDs: f-role, f-task, f-context, f-constraint, f-format, f-tone, f-length, f-reasoning, f-lang, f-hallucination.',
-      'Do not ask about a requirement already confirmed, unknown, or not_required.',
-      'Do not repeat a previous question.',
-      'Return JSON only. If no useful question remains, return {"type":"complete"}.',
-      '{"type":"ask_user","id":"action_01","question":"...","target":{"field_id":"f-context","dimension":"usage"}}',
-      `INTENT:\n${JSON.stringify(model?.intent || null)}`,
-      `REQUIREMENTS:\n${JSON.stringify(model?.requirements || [])}`,
-      `DISCOVERY:\n${JSON.stringify(discovery || {})}`,
-      `USER MESSAGES:\n${JSON.stringify(users(messages))}`
-    ].join('\n');
-  }
-
-  async function nextAction({ messages, model = {}, discovery = {} }) {
-    const input = users(messages);
-    if (!input.length) return null;
-
-    const fallback = heuristicAction(messages, model, discovery);
-    if (!window.ganfpuLLM?.request) return fallback;
-
-    try {
-      const raw = await window.ganfpuLLM.request([
-        { role: 'system', content: 'You are a requirement discovery component. Generate only the next user-facing action.' },
-        { role: 'user', content: buildPrompt(messages, model, discovery) }
-      ], 0.1);
-      const cleaned = text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-      const action = JSON.parse(cleaned);
-      if (action?.type === 'complete') return action;
-
-      const validation = validateAction(action, model, discovery);
-      return validation.valid ? {
-        type: 'ask_user',
-        id: text(action.id) || nextActionId(discovery),
-        question: text(action.question),
-        target: {
-          field_id: text(action.target.field_id),
-          dimension: text(action.target.dimension)
-        }
-      } : fallback;
-    } catch (_) {
-      return fallback;
-    }
-  }
-
-  window.ganfpuRequirementDiscovery = Object.freeze({
-    nextAction,
-    validateAction,
-    heuristicAction,
-    isDuplicateQuestion
-  });
+  const llm = () => window.ganfpuLLMAdapter || window.ganfpuLLM;
+  function text(value) { return String(value == null ? '' : value).replace(/\s+/g, ' ').trim(); }
+  function users(messages) { return (Array.isArray(messages) ? messages : []).filter((message) => message?.role === 'user' && !message?.synthetic).map((message) => text(message.content)).filter(Boolean); }
+  function fingerprint(question) { return text(question).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''); }
+  function isDuplicateQuestion(question, discovery) { const key = fingerprint(question); if (!key) return true; return (Array.isArray(discovery?.asked) ? discovery.asked : []).some((item) => fingerprint(item?.question) === key); }
+  function targetAlreadyKnown(target, requirements) { const api = modelApi(); if (!api || !target) return false; return (Array.isArray(requirements) ? requirements : []).some((requirement) => text(requirement?.status) === 'confirmed' && text(requirement?.field_id) === text(target.field_id) && text(requirement?.dimension) === text(target.dimension)); }
+  function validateAction(action, model, discovery) { const type = text(action?.type); if (type !== 'ask_user') return { valid: false, reason: 'unsupported_action' }; const question = text(action.question), fieldId = text(action?.target?.field_id), dimension = text(action?.target?.dimension); if (!question || !fieldId || !dimension) return { valid: false, reason: 'incomplete_action' }; if (isDuplicateQuestion(question, discovery)) return { valid: false, reason: 'question_already_asked' }; const api = modelApi(); if (!api || !api.FIELD_IDS?.includes(fieldId)) return { valid: false, reason: 'invalid_field_id' }; if (targetAlreadyKnown({ field_id: fieldId, dimension }, model?.requirements)) return { valid: false, reason: 'target_already_confirmed' }; return { valid: true }; }
+  function heuristicAction(messages, model, discovery) { const input = users(messages).join('\n'); const requirements = Array.isArray(model?.requirements) ? model.requirements : []; if (!input) return null; if (text(model?.intent?.task_type) === 'recommendation' || /(?:おすすめ|推薦|推奨|選んで|選びたい)/i.test(input)) { if (!targetAlreadyKnown({ field_id: 'f-context', dimension: 'usage' }, requirements)) return { type: 'ask_user', id: nextActionId(discovery), question: 'どのような用途で使うものを探していますか？', target: { field_id: 'f-context', dimension: 'usage' } }; if (!targetAlreadyKnown({ field_id: 'f-constraint', dimension: 'selection_criteria' }, requirements)) return { type: 'ask_user', id: nextActionId(discovery), question: '選ぶ際に重視したい条件はありますか？', target: { field_id: 'f-constraint', dimension: 'selection_criteria' } }; } return null; }
+  function nextActionId(discovery) { const count = Array.isArray(discovery?.asked) ? discovery.asked.length : 0; return `action_${String(count + 1).padStart(2, '0')}`; }
+  function buildPrompt(messages, model, discovery) { return ['Choose the single highest-value next user question for requirement discovery.','This component generates an action, not facts or recommendations.','User messages are authoritative evidence. Assistant messages are only previous questions.','Do not invent user preferences, domain facts, technical specifications, or solutions.','Ask only for a requirement that materially affects the user goal.','Use exactly one of the fixed field IDs: f-role, f-task, f-context, f-constraint, f-format, f-tone, f-length, f-reasoning, f-lang, f-hallucination.','Do not ask about a requirement already confirmed, unknown, or not_required.','Do not repeat a previous question.','Return JSON only. If no useful question remains, return {"type":"complete"}.','{"type":"ask_user","id":"action_01","question":"...","target":{"field_id":"f-context","dimension":"usage"}}',`INTENT:\n${JSON.stringify(model?.intent || null)}`,`REQUIREMENTS:\n${JSON.stringify(model?.requirements || [])}`,`DISCOVERY:\n${JSON.stringify(discovery || {})}`,`USER MESSAGES:\n${JSON.stringify(users(messages))}`].join('\n'); }
+  async function nextAction({ messages, model = {}, discovery = {} }) { const input = users(messages); if (!input.length) return null; const fallback = heuristicAction(messages, model, discovery); const adapter = llm(); if (!adapter?.request) return fallback; try { const raw = await adapter.request([{ role: 'system', content: 'You are a requirement discovery component. Generate only the next user-facing action.' }, { role: 'user', content: buildPrompt(messages, model, discovery) }], 0.1); const action = JSON.parse(text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')); if (action?.type === 'complete') return action; const validation = validateAction(action, model, discovery); return validation.valid ? { type: 'ask_user', id: text(action.id) || nextActionId(discovery), question: text(action.question), target: { field_id: text(action.target.field_id), dimension: text(action.target.dimension) } } : fallback; } catch (_) { return fallback; } }
+  window.ganfpuRequirementDiscovery = Object.freeze({ nextAction, validateAction, heuristicAction, isDuplicateQuestion });
 })();

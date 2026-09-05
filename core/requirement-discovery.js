@@ -8,13 +8,6 @@
     return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
   }
 
-  function users(messages) {
-    return (Array.isArray(messages) ? messages : [])
-      .filter((message) => message?.role === 'user' && !message?.synthetic)
-      .map((message) => text(message.content))
-      .filter(Boolean);
-  }
-
   function fingerprint(question) {
     return text(question).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
   }
@@ -40,30 +33,16 @@
   }
 
   function validateAction(action, model, discovery) {
-    if (text(action?.type) !== 'ask_user') {
-      return { valid: false, reason: 'unsupported_action' };
-    }
-
+    if (text(action?.type) !== 'ask_user') return { valid: false, reason: 'unsupported_action' };
     const question = text(action.question);
     const fieldId = text(action?.target?.field_id);
     const dimension = text(action?.target?.dimension);
-    if (!question || !fieldId || !dimension) {
-      return { valid: false, reason: 'incomplete_action' };
-    }
-    if (isDuplicateQuestion(question, discovery)) {
-      return { valid: false, reason: 'question_already_asked' };
-    }
-
+    if (!question || !fieldId || !dimension) return { valid: false, reason: 'incomplete_action' };
+    if (isDuplicateQuestion(question, discovery)) return { valid: false, reason: 'question_already_asked' };
     const api = modelApi();
-    if (!api || !api.FIELD_IDS?.includes(fieldId)) {
-      return { valid: false, reason: 'invalid_field_id' };
-    }
-
+    if (!api || !api.FIELD_IDS?.includes(fieldId)) return { valid: false, reason: 'invalid_field_id' };
     const status = targetStatus({ field_id: fieldId, dimension }, model?.requirements);
-    if (status) {
-      return { valid: false, reason: `target_already_${status}` };
-    }
-
+    if (status) return { valid: false, reason: `target_already_${status}` };
     return { valid: true };
   }
 
@@ -72,35 +51,30 @@
     return `action_${String(count + 1).padStart(2, '0')}`;
   }
 
-  function buildPrompt(messages, model, discovery) {
+  function buildPrompt(model, discovery, currentAction) {
     return [
       'Choose the single highest-value next user question for requirement discovery.',
       'This component generates an action, not facts, recommendations, or solutions.',
-      'User messages are authoritative evidence. Assistant messages are only previous questions.',
+      'The Requirement Model contains all user-grounded requirements discovered so far. Treat it as the source of truth.',
+      'The discovery log contains questions already asked. Do not repeat them.',
       'Do not invent user preferences, domain facts, technical specifications, or recommendations.',
       'Ask only for a requirement that materially affects the user goal.',
       'Discover only requirements necessary for the current task. Do not fill all ten fields by default.',
       'Use exactly one fixed field ID: f-role, f-task, f-context, f-constraint, f-format, f-tone, f-length, f-reasoning, f-lang, f-hallucination.',
       'The target dimension must describe the requirement being asked about.',
       'Do not ask about a target whose requirement is already confirmed, unknown, or not_required.',
-      'Do not repeat a previous question.',
       'A candidate requirement is not authoritative until explicitly confirmed by the user.',
-      'If the user says they do not know a criterion, the Requirement Extractor should represent that as unknown; do not fabricate a preference.',
-      'Return JSON only.',
       'If no materially useful requirement remains, return {"type":"complete"}.',
       '{"type":"ask_user","id":"action_01","question":"...","target":{"field_id":"f-context","dimension":"usage"}}',
       `INTENT:\n${JSON.stringify(model?.intent || null)}`,
       `REQUIREMENTS:\n${JSON.stringify(model?.requirements || [])}`,
       `KNOWLEDGE:\n${JSON.stringify(model?.knowledge || [])}`,
       `DISCOVERY:\n${JSON.stringify(discovery || {})}`,
-      `USER MESSAGES:\n${JSON.stringify(users(messages))}`
+      `CURRENT ACTION:\n${JSON.stringify(currentAction || null)}`
     ].join('\n');
   }
 
-  async function nextAction({ messages, model = {}, discovery = {} }) {
-    const input = users(messages);
-    if (!input.length) return null;
-
+  async function nextAction({ model = {}, discovery = {}, currentAction = null } = {}) {
     const adapter = llm();
     if (!adapter?.request) return null;
 
@@ -112,7 +86,7 @@
         },
         {
           role: 'user',
-          content: buildPrompt(messages, model, discovery)
+          content: buildPrompt(model, discovery, currentAction)
         }
       ], 0.1);
 

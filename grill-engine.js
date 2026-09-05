@@ -401,13 +401,11 @@
           term: item.term,
           verification_status: item.status,
           confidence: item.confidence,
-          sources: (item.evidence || [])
-            .slice(0, 6)
-            .map((s) => ({
-              title: String(s.title || '').slice(0, 300),
-              url: String(s.url || '').slice(0, 500),
-              source: String(s.source || '').slice(0, 100),
-            })),
+          sources: (item.evidence || []).slice(0, 6).map((s) => ({
+            title: String(s.title || '').slice(0, 300),
+            url: String(s.url || '').slice(0, 500),
+            source: String(s.source || '').slice(0, 100),
+          })),
           warnings: item.warnings || [],
         })
       )

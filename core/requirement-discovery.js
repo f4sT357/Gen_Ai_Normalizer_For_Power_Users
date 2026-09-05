@@ -51,7 +51,8 @@
     return `action_${String(count + 1).padStart(2, '0')}`;
   }
 
-  function buildPrompt(model, discovery, currentAction) {
+  function buildPrompt(model, discovery, currentAction, latestUserMessage) {
+    const latest = text(latestUserMessage?.content);
     return [
       'Choose the single highest-value next user question for requirement discovery.',
       'This component generates an action, not facts, recommendations, or solutions.',
@@ -64,17 +65,21 @@
       'The target dimension must describe the requirement being asked about.',
       'Do not ask about a target whose requirement is already confirmed, unknown, or not_required.',
       'A candidate requirement is not authoritative until explicitly confirmed by the user.',
+      'Generate the question in the same language as the latest authoritative user message.',
+      'Do not translate the question into another language unless the user explicitly requested another language.',
+      'The latest user message is provided only to determine the current conversation language and context; do not treat unstated preferences in it as requirements.',
       'If no materially useful requirement remains, return {"type":"complete"}.',
       '{"type":"ask_user","id":"action_01","question":"...","target":{"field_id":"f-context","dimension":"usage"}}',
       `INTENT:\n${JSON.stringify(model?.intent || null)}`,
       `REQUIREMENTS:\n${JSON.stringify(model?.requirements || [])}`,
       `KNOWLEDGE:\n${JSON.stringify(model?.knowledge || [])}`,
       `DISCOVERY:\n${JSON.stringify(discovery || {})}`,
-      `CURRENT ACTION:\n${JSON.stringify(currentAction || null)}`
+      `CURRENT ACTION:\n${JSON.stringify(currentAction || null)}`,
+      `LATEST USER MESSAGE FOR LANGUAGE CONTEXT:\n${JSON.stringify(latest)}`
     ].join('\n');
   }
 
-  async function nextAction({ model = {}, discovery = {}, currentAction = null } = {}) {
+  async function nextAction({ model = {}, discovery = {}, currentAction = null, latestUserMessage = null } = {}) {
     const adapter = llm();
     if (!adapter?.request) return null;
 
@@ -86,7 +91,7 @@
         },
         {
           role: 'user',
-          content: buildPrompt(model, discovery, currentAction)
+          content: buildPrompt(model, discovery, currentAction, latestUserMessage)
         }
       ], 0.1);
 

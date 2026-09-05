@@ -154,6 +154,17 @@
     document.head.appendChild(style);
   }
 
+  function startPowerGrill() {
+    const task = document.getElementById('f-task');
+    const intent = task?.value.trim() || '';
+    if (!intent) {
+      task?.focus();
+      return;
+    }
+    if (typeof window.ganfpuStartGrill === 'function') window.ganfpuStartGrill(intent);
+    else showToast('Grill Me is still loading. Try again in a moment.');
+  }
+
   function createUI() {
     if (document.getElementById('normal-mode')) return;
     const mainGrid = document.querySelector('.main-grid');
@@ -194,6 +205,8 @@
     powerButton.addEventListener('click', togglePowerMode);
     document.getElementById('normal-result-copy').addEventListener('click', copyNormalResult);
     settingsButton.addEventListener('click', toggleSettings);
+    const powerGrillButton = document.getElementById('btn-grill-me');
+    if (powerGrillButton) powerGrillButton.addEventListener('click', startPowerGrill);
     const input = document.getElementById('normal-intent');
     input.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -302,14 +315,6 @@
     if (mainGrid) mainGrid.style.display = normalMode ? 'none' : '';
     if (normal) normal.style.display = normalMode ? '' : 'none';
     applyCopy();
-    if (!normalMode) {
-      const task = document.getElementById('f-task');
-      const input = document.getElementById('normal-intent');
-      if (task && input && input.value.trim() && !task.value.trim()) {
-        task.value = input.value.trim();
-        update();
-      }
-    }
   }
 
   function startNormalGrill() {

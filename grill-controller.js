@@ -88,11 +88,12 @@
       specification[field] = value;
     });
 
-    const lang = document.documentElement.lang || 'ja';
-    const i18n = window.I18N;
-    if (i18n?.[lang]) {
-      Object.keys(i18n[lang]).forEach((key) => {
-        if (key.startsWith('prefix-')) prefixes[key] = i18n[lang][key];
+    // app.js owns the translation data and exposes t() as a classic-script
+    // global. Read only the compiler prefixes; do not duplicate i18n state.
+    const translate = typeof window.t === 'function' ? window.t : null;
+    if (translate) {
+      window.ganfpuPromptCompiler.fieldOrder.forEach(([, prefixKey]) => {
+        prefixes[prefixKey] = translate(prefixKey);
       });
     }
 

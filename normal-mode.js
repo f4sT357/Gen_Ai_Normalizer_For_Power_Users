@@ -320,7 +320,7 @@
       input.focus();
       return;
     }
-    if (typeof window.ganfpuStartGrill === 'function') window.ganfpuStartGrill();
+    if (typeof window.ganfpuStartGrill === 'function') window.ganfpuStartGrill(intent);
     else showToast('Grill Me is still loading. Try again in a moment.');
   }
 
@@ -336,19 +336,11 @@
     window.setLang = wrapped;
   }
 
-  function overrideApply() {
-    window.applyGrillMeResult = function () {
-      if (typeof window.ganfpuApplyGrillResult === 'function')
-        return window.ganfpuApplyGrillResult();
-    };
-  }
-
   function init() {
     injectStyles();
     createUI();
     applyCopy();
     wrapLanguageSwitch();
-    overrideApply();
     const mainGrid = document.querySelector('.main-grid');
     if (mainGrid) mainGrid.style.display = 'none';
     if (location.hash.includes('data=')) togglePowerMode();

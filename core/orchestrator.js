@@ -40,12 +40,18 @@
     return /(?:予算|価格|金額|費用|期限|締切|納期|までに|以内|文字数|字以内|短く|長く|簡潔|詳細|箇条書き|表形式|JSON|Markdown|メール形式|敬語|カジュアル|丁寧|英語|日本語|中国語|韓国語|対象|読者|用途|目的|背景|前提|条件|制約|禁止|避け|含め|除外|出力|フォーマット|形式|トーン|語調|推論|理由|根拠|正確|事実|幻覚|ソース|引用|Python|JavaScript|TypeScript|コード|API|React|Next\.js|\bbudget\b|\bdeadline\b|\bformat\b|\btone\b|\baudience\b|\bcontext\b|\bconstraint\b|\blength\b|\blanguage\b|\breasoning\b|\bsource\b|\bcitation\b)/i.test(value);
   }
 
+  function addRequirement(model, requirement) {
+    if (typeof requirementApi()?.addRequirement !== 'function') return model;
+    const result = requirementApi().addRequirement(model, requirement);
+    return result?.model || model;
+  }
+
   function seedInitialTask(model, messages) {
     const first = authoritativeUserMessages(messages)[0];
     if (!first || text(model?.intent?.task_type) === 'unknown') return { model, seeded: false };
-    if (!requirementApi()?.addRequirement) return { model, seeded: false };
+    if (typeof requirementApi()?.addRequirement !== 'function') return { model, seeded: false };
     const value = text(first.content);
-    const next = requirementApi().addRequirement(model, {
+    const next = addRequirement(model, {
       field_id: 'f-task',
       dimension: 'task',
       dimension_anchor: value,
@@ -53,7 +59,8 @@
       status: 'confirmed',
       source: { type: 'user', message_id: first.id || null, quote: value },
     });
-    return { model: next, seeded: true };
+    const seeded = next !== model && Array.isArray(next?.requirements) && next.requirements.length > 0;
+    return { model: next, seeded };
   }
 
   function localCompletion(model) {
@@ -90,22 +97,18 @@
       });
       if (Array.isArray(next)) {
         let updated = model;
-        for (const requirement of next) {
-          if (typeof requirementApi()?.addRequirement !== 'function') continue;
-          updated = requirementApi().addRequirement(updated, requirement);
-        }
+        for (const requirement of next) updated = addRequirement(updated, requirement);
         return updated;
       }
-      return next?.model || model;
+      if (next?.model) return next.model;
+      if (next && typeof next === 'object' && next.field_id) return addRequirement(model, next);
+      return model;
     }
     if (typeof extractor.extract !== 'function') return model;
     const next = await extractor.extract(messages, model);
     if (Array.isArray(next)) {
       let updated = model;
-      for (const requirement of next) {
-        if (typeof requirementApi()?.addRequirement !== 'function') continue;
-        updated = requirementApi().addRequirement(updated, requirement);
-      }
+      for (const requirement of next) updated = addRequirement(updated, requirement);
       return updated;
     }
     return next?.model || model;

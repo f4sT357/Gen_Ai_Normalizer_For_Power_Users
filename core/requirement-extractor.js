@@ -47,7 +47,7 @@
     let raw;
     try { raw = await adapter.request([{ role: 'system', content: 'You are a requirement extraction component. Extract only a user-grounded answer to the current action.' }, { role: 'user', content: buildDeltaPrompt(message, currentAction, existing) }], 0.1); } catch (_) { return []; }
     const parsed = parseJson(raw); if (parsed == null) return [];
-    const candidates = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.requirements) ? parsed.requirements : [];
+    const candidates = Array.isArray(parsed) ? parsed : (parsed?.requirements && Array.isArray(parsed.requirements) ? parsed.requirements : (parsed && typeof parsed === 'object' && parsed.field_id ? [parsed] : []));
     const accepted = [];
     for (const candidate of candidates.slice(0, 1)) {
       const normalized = { ...candidate, source: candidate.status === 'candidate' ? (candidate.source && typeof candidate.source === 'object' ? { ...candidate.source } : null) : { type: 'user', message_id: message.id, quote: text(candidate.source?.quote) || message.content } };

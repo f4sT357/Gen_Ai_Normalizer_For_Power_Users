@@ -185,7 +185,6 @@
     if (!resolvedIntent) return;
     if (!providerReady()) return;
     grillState = createState();
-    grillState.model.intent = resolvedIntent;
     grillState.messages.push({ role: 'user', content: resolvedIntent, id: 'msg_01' });
     const modal = el('grillModal'),
       log = el('grillChatLog'),

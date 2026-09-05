@@ -1,17 +1,35 @@
 (() => {
   'use strict';
 
-  function install() {
+  function loadCompiler() {
+    if (window.ganfpuPromptCompiler?.compile) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'core/prompt-compiler.js';
+      script.onload = () => window.ganfpuPromptCompiler?.compile ? resolve() : reject(new Error('Prompt Compiler API unavailable.'));
+      script.onerror = () => reject(new Error('Prompt Compiler could not be loaded.'));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function install() {
     const originalUpdate = window.update;
     const specificationApi = window.ganfpuPromptSpecification;
-    const compilerApi = window.ganfpuPromptCompiler;
     const translate = window.t;
 
-    if (typeof originalUpdate !== 'function' || !specificationApi?.fromDom || !compilerApi?.compile || typeof translate !== 'function') {
+    if (typeof originalUpdate !== 'function' || !specificationApi?.fromDom || typeof translate !== 'function') {
       console.warn('[GANFPU] Prompt preview adapter could not initialize.');
       return;
     }
 
+    try {
+      await loadCompiler();
+    } catch (error) {
+      console.warn('[GANFPU] Prompt preview adapter could not load compiler:', error);
+      return;
+    }
+
+    const compilerApi = window.ganfpuPromptCompiler;
     const prefixes = {};
     compilerApi.fieldOrder.forEach(([, prefixKey]) => {
       prefixes[prefixKey] = translate(prefixKey);

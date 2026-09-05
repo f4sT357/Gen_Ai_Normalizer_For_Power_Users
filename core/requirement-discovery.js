@@ -5,7 +5,7 @@
   const llm = () => window.ganfpuLLMAdapter || window.ganfpuLLM;
 
   function text(value) {
-    return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+    return String(value == null ? '').replace(/\s+/g, ' ').trim();
   }
 
   function fingerprint(question) {
@@ -51,8 +51,13 @@
     return `action_${String(count + 1).padStart(2, '0')}`;
   }
 
-  function buildPrompt(model, discovery, currentAction, latestUserMessage) {
+  function buildPrompt(model, discovery, currentAction, messages, latestUserMessage) {
     const latest = text(latestUserMessage?.content);
+    const conversation = (Array.isArray(messages) ? messages : [])
+      .filter((message) => message?.role === 'user' || message?.role === 'assistant')
+      .map((message) => ({ role: message.role, content: text(message.content) }))
+      .filter((message) => message.content);
+
     return [
       'Choose the single highest-value next user question for requirement discovery.',
       'This component generates an action, not facts, recommendations, or solutions.',
@@ -65,9 +70,11 @@
       'The target dimension must describe the requirement being asked about.',
       'Do not ask about a target whose requirement is already confirmed, unknown, or not_required.',
       'A candidate requirement is not authoritative until explicitly confirmed by the user.',
-      'Generate the question in the same language as the latest authoritative user message.',
-      'Do not translate the question into another language unless the user explicitly requested another language.',
-      'The latest user message is provided only to determine the current conversation language and context; do not treat unstated preferences in it as requirements.',
+      'Generate the question in the language used by the conversation as a whole.',
+      'Use the latest user message as the strongest signal for the current conversation language, but do not switch languages merely because one answer is temporarily written in another language.',
+      'Only change the question language when the user explicitly requests a different language for the questions or conversation.',
+      'Do not infer f-lang from the conversation language. f-lang is a separate task requirement and must be user-grounded.',
+      'The conversation history is provided to judge language continuity and explicit language requests; it is not permission to infer unstated requirements.',
       'If no materially useful requirement remains, return {"type":"complete"}.',
       '{"type":"ask_user","id":"action_01","question":"...","target":{"field_id":"f-context","dimension":"usage"}}',
       `INTENT:\n${JSON.stringify(model?.intent || null)}`,
@@ -75,11 +82,12 @@
       `KNOWLEDGE:\n${JSON.stringify(model?.knowledge || [])}`,
       `DISCOVERY:\n${JSON.stringify(discovery || {})}`,
       `CURRENT ACTION:\n${JSON.stringify(currentAction || null)}`,
-      `LATEST USER MESSAGE FOR LANGUAGE CONTEXT:\n${JSON.stringify(latest)}`
+      `CONVERSATION HISTORY:\n${JSON.stringify(conversation)}`,
+      `LATEST USER MESSAGE:\n${JSON.stringify(latest)}`
     ].join('\n');
   }
 
-  async function nextAction({ model = {}, discovery = {}, currentAction = null, latestUserMessage = null } = {}) {
+  async function nextAction({ model = {}, discovery = {}, currentAction = null, messages = [], latestUserMessage = null } = {}) {
     const adapter = llm();
     if (!adapter?.request) return null;
 
@@ -91,7 +99,7 @@
         },
         {
           role: 'user',
-          content: buildPrompt(model, discovery, currentAction, latestUserMessage)
+          content: buildPrompt(model, discovery, currentAction, messages, latestUserMessage)
         }
       ], 0.1);
 

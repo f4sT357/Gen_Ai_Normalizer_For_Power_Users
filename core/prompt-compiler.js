@@ -27,6 +27,12 @@
     return String(value == null ? '' : value).trim();
   }
 
+  function prefix(value) {
+    // Prefixes are formatting data. Preserve their trailing newline(s)
+    // because the existing Power Mode compiler concatenates prefix + value.
+    return String(value == null ? '' : value);
+  }
+
   function compile(specification = {}, prefixes = {}) {
     const parts = [];
 
@@ -34,8 +40,7 @@
       const value = text(specification[field]);
       if (!value) return;
 
-      const prefix = text(prefixes[prefixKey]);
-      parts.push(prefix + value);
+      parts.push(prefix(prefixes[prefixKey]) + value);
     });
 
     return parts.join('\n\n');

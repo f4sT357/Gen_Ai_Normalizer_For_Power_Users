@@ -84,9 +84,6 @@
   function hasInitialRequirementCue(message) {
     const value = text(message?.content);
     if (!value) return false;
-    // Conservative routing only. A positive match keeps the extractor in the
-    // loop; false positives cost one LLM call, while false negatives are avoided
-    // for the common explicit task-only forms covered here.
     return /(?:予算|価格|金額|費用|期限|締切|納期|までに|以内|文字数|字以内|短く|長く|簡潔|詳細|箇条書き|表形式|JSON|Markdown|メール形式|敬語|カジュアル|丁寧|英語|日本語|中国語|韓国語|対象|読者|用途|目的|背景|前提|条件|制約|禁止|避け|含め|除外|出力|フォーマット|形式|トーン|語調|推論|理由|根拠|正確|事実|幻覚|ソース|引用|Python|JavaScript|TypeScript|コード|API|React|Next\.js|for|to|under|budget|deadline|format|tone|audience|context|constraint|length|language|reasoning|source|citation)/i.test(value);
   }
 
@@ -127,8 +124,6 @@
     if (currentModel.intent) return currentModel.intent;
     if (!intentApi) return null;
 
-    // The heuristic is deliberately authoritative for obvious routing cases.
-    // Only genuinely ambiguous requests pay for the LLM classification call.
     if (typeof intentApi.heuristicIntent === 'function') {
       const heuristic = intentApi.heuristicIntent(messages);
       if (text(heuristic?.task_type) !== 'unknown') return heuristic;
@@ -159,9 +154,6 @@
     const seedResult = initialTurn ? seedInitialTask(currentModel, messages) : { model: currentModel, seeded: false };
     currentModel = seedResult.model;
 
-    // The initial user message already contains explicit task evidence. For a
-    // simple task-only request, extracting it again with an LLM is redundant.
-    // Keep the extractor for messages that may contain additional requirements.
     if (!seedResult.seeded || hasInitialRequirementCue(latestUserMessage(messages))) {
       currentModel = await extractRequirements({ messages, model: currentModel, currentAction, extractor });
     }
@@ -187,6 +179,14 @@
       return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
     }
 
+    // Knowledge discovery already produced sufficient evidence. Asking the
+    // requirement-discovery LLM for another question would add latency without
+    // improving the answer for this task class.
+    if (taskType === 'knowledge' && knowledgeIsSufficient(currentModel)) {
+      currentDiscovery.completed = true;
+      return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
+    }
+
     if (discoveryApi?.nextAction) {
       const action = await discoveryApi.nextAction({ messages, model: currentModel, discovery: currentDiscovery, currentAction });
       if (action?.type === 'ask_user') return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
@@ -202,11 +202,6 @@
         model: currentModel,
         discovery: currentDiscovery
       };
-    }
-
-    if (taskType === 'knowledge' && knowledgeIsSufficient(currentModel)) {
-      currentDiscovery.completed = true;
-      return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
     }
 
     return {

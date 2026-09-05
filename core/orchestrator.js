@@ -70,6 +70,28 @@
     );
   }
 
+  function latestUserMessage(messages) {
+    if (!Array.isArray(messages)) return null;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i];
+      if (message?.role === 'user' && !message?.synthetic && text(message.content)) return message;
+    }
+    return null;
+  }
+
+  async function extractRequirements({ messages, model, currentAction, extractor }) {
+    if (!extractor) return model;
+    if (currentAction?.type === 'ask_user' && extractor.extractDelta) {
+      const latest = latestUserMessage(messages);
+      if (latest) {
+        const delta = await extractor.extractDelta({ userMessage: latest, currentAction, model });
+        return mergeRequirements(model, delta);
+      }
+    }
+    if (extractor.extract) return mergeRequirements(model, await extractor.extract(messages, model));
+    return model;
+  }
+
   async function step({ messages = [], model = {}, discovery = {}, currentAction = null } = {}) {
     const hasUserMessage = Array.isArray(messages) && messages.some(
       (message) => message?.role === 'user' && !message?.synthetic && text(message.content)
@@ -87,9 +109,7 @@
       currentModel.intent = await intentApi.analyze(messages);
     }
 
-    if (extractor?.extract) {
-      currentModel = mergeRequirements(currentModel, await extractor.extract(messages, currentModel));
-    }
+    currentModel = await extractRequirements({ messages, model: currentModel, currentAction, extractor });
 
     const taskType = text(currentModel?.intent?.task_type);
 

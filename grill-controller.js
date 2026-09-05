@@ -180,17 +180,13 @@
     await respond();
   }
 
-  async function start(intentOverride = '') {
+  async function start(intent = '') {
+    const resolvedIntent = text(intent);
+    if (!resolvedIntent) return;
     if (!providerReady()) return;
-    const normalInput = el('normal-intent');
-    const powerInput = el('f-task');
-    const intent = text(intentOverride) || text(normalInput?.value) || text(powerInput?.value);
-    if (!intent) {
-      (normalInput || powerInput)?.focus();
-      return;
-    }
     grillState = createState();
-    grillState.messages.push({ role: 'user', content: intent, id: 'msg_01' });
+    grillState.model.intent = resolvedIntent;
+    grillState.messages.push({ role: 'user', content: resolvedIntent, id: 'msg_01' });
     const modal = el('grillModal'),
       log = el('grillChatLog'),
       inputArea = el('grillInput'),
@@ -213,7 +209,6 @@
   }
 
   async function apply() {
-    if (!providerReady()) return;
     const requirements = Array.isArray(grillState.model?.requirements)
       ? grillState.model.requirements
       : [];
@@ -250,7 +245,6 @@
   function bind() {
     const sendButton = el('btn-grill-send');
     const applyButton = el('btn-grill-apply');
-    const startButton = el('btn-grill-me');
     const closeButton = el('btn-grill-close');
     const modalCloseButton = document.querySelector('#grillModal .modal-close-btn');
     if (!sendButton || !applyButton) return false;
@@ -276,11 +270,6 @@
     freshApply.onclick = apply;
     freshApply.disabled = true;
 
-    if (startButton) {
-      const freshStart = startButton.cloneNode(true);
-      startButton.replaceWith(freshStart);
-      freshStart.onclick = start;
-    }
     if (closeButton) {
       const freshClose = closeButton.cloneNode(true);
       closeButton.replaceWith(freshClose);
@@ -292,15 +281,11 @@
       freshModalClose.onclick = closeGrillMe;
     }
 
-    window.applyGrillMeResult = apply;
     return true;
   }
 
   window.ganfpuStartGrill = start;
   window.ganfpuApplyGrillResult = apply;
-  window.startGrillMe = start;
-  window.closeGrillMe = closeGrillMe;
-  window.applyGrillMeResult = apply;
   window.ganfpuGrillController = Object.freeze({
     getState: () => JSON.parse(JSON.stringify(grillState)),
     start,

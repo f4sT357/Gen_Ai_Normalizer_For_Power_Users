@@ -107,6 +107,15 @@
     return { model: result.added ? result.model : model, seeded: result.added };
   }
 
+  function localCompletion(model) {
+    const taskType = text(model?.intent?.task_type);
+    if (!taskType || taskType === 'unknown') return false;
+    const requirements = Array.isArray(model?.requirements) ? model.requirements : [];
+    if (!requirements.some((item) => text(item?.field_id) === 'f-task' && text(item?.status) === 'confirmed')) return false;
+    if (requirements.some((item) => text(item?.status) === 'candidate')) return false;
+    return taskType === 'transformation' && requirements.length === 1;
+  }
+
   async function extractRequirements({ messages, model, currentAction, extractor }) {
     if (!extractor) return model;
     if (currentAction?.type === 'ask_user' && extractor.extractDelta) {
@@ -179,10 +188,12 @@
       return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
     }
 
-    // Knowledge discovery already produced sufficient evidence. Asking the
-    // requirement-discovery LLM for another question would add latency without
-    // improving the answer for this task class.
     if (taskType === 'knowledge' && knowledgeIsSufficient(currentModel)) {
+      currentDiscovery.completed = true;
+      return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
+    }
+
+    if (localCompletion(currentModel)) {
       currentDiscovery.completed = true;
       return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
     }

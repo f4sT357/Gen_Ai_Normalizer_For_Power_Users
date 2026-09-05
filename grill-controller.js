@@ -88,8 +88,6 @@
       specification[field] = value;
     });
 
-    // app.js owns the translation data and exposes t() as a classic-script
-    // global. Read only the compiler prefixes; do not duplicate i18n state.
     const translate = typeof window.t === 'function' ? window.t : null;
     if (translate) {
       window.ganfpuPromptCompiler.fieldOrder.forEach(([, prefixKey]) => {
@@ -108,7 +106,12 @@
     appendGrillMessage('system', 'Thinking...');
     try {
       if (!window.ganfpuCore?.step) throw new Error('GANFPU Core is unavailable.');
-      const result = await window.ganfpuCore.step({ messages: grillState.messages, model: grillState.model, discovery: grillState.discovery });
+      const result = await window.ganfpuCore.step({
+        messages: grillState.messages,
+        model: grillState.model,
+        discovery: grillState.discovery,
+        currentAction: grillState.currentAction
+      });
       grillState.model = result.model || grillState.model;
       grillState.discovery = result.discovery || grillState.discovery;
       grillState.currentAction = result.action || null;

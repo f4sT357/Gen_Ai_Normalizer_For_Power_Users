@@ -70,13 +70,44 @@
     );
   }
 
+  function authoritativeUserMessages(messages) {
+    return Array.isArray(messages)
+      ? messages.filter((message) => message?.role === 'user' && !message?.synthetic && text(message.content))
+      : [];
+  }
+
   function latestUserMessage(messages) {
-    if (!Array.isArray(messages)) return null;
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const message = messages[i];
-      if (message?.role === 'user' && !message?.synthetic && text(message.content)) return message;
-    }
-    return null;
+    const users = authoritativeUserMessages(messages);
+    return users.length ? users[users.length - 1] : null;
+  }
+
+  function hasInitialRequirementCue(message) {
+    const value = text(message?.content);
+    if (!value) return false;
+    // Conservative routing only. A positive match keeps the extractor in the
+    // loop; false positives cost one LLM call, while false negatives are avoided
+    // for the common explicit task-only forms covered here.
+    return /(?:予算|価格|金額|費用|期限|締切|納期|までに|以内|文字数|字以内|短く|長く|簡潔|詳細|箇条書き|表形式|JSON|Markdown|メール形式|敬語|カジュアル|丁寧|英語|日本語|中国語|韓国語|対象|読者|用途|目的|背景|前提|条件|制約|禁止|避け|含め|除外|出力|フォーマット|形式|トーン|語調|推論|理由|根拠|正確|事実|幻覚|ソース|引用|Python|JavaScript|TypeScript|コード|API|React|Next\.js|for|to|under|budget|deadline|format|tone|audience|context|constraint|length|language|reasoning|source|citation)/i.test(value);
+  }
+
+  function seedInitialTask(model, messages) {
+    const api = window.ganfpuRequirementModel;
+    const intent = model?.intent;
+    const users = authoritativeUserMessages(messages);
+    const latest = users.length === 1 ? users[0] : null;
+    if (!api || !latest || text(intent?.task_type) === 'unknown') return { model, seeded: false };
+    if (Array.isArray(model?.requirements) && model.requirements.length) return { model, seeded: false };
+
+    const quote = text(latest.content);
+    const result = api.addRequirement(model, {
+      field_id: 'f-task',
+      dimension: 'task',
+      dimension_anchor: quote,
+      value: quote,
+      status: 'confirmed',
+      source: { type: 'user', message_id: text(latest.id), quote }
+    });
+    return { model: result.added ? result.model : model, seeded: result.added };
   }
 
   async function extractRequirements({ messages, model, currentAction, extractor }) {
@@ -124,7 +155,16 @@
       currentModel.intent = await resolveIntent(messages, currentModel, intentApi);
     }
 
-    currentModel = await extractRequirements({ messages, model: currentModel, currentAction, extractor });
+    const initialTurn = authoritativeUserMessages(messages).length === 1 && !currentAction && !currentModel.requirements.length;
+    const seedResult = initialTurn ? seedInitialTask(currentModel, messages) : { model: currentModel, seeded: false };
+    currentModel = seedResult.model;
+
+    // The initial user message already contains explicit task evidence. For a
+    // simple task-only request, extracting it again with an LLM is redundant.
+    // Keep the extractor for messages that may contain additional requirements.
+    if (!seedResult.seeded || hasInitialRequirementCue(latestUserMessage(messages))) {
+      currentModel = await extractRequirements({ messages, model: currentModel, currentAction, extractor });
+    }
 
     const taskType = text(currentModel?.intent?.task_type);
 

@@ -84,12 +84,11 @@
       const fieldId = text(requirement?.field_id);
       const value = text(requirement?.value);
       if (!fieldId || !value) return;
-      const field = fieldId.replace(/^f-/, '');
-      specification[field] = value;
+      specification[fieldId.replace(/^f-/, '')] = value;
     });
 
     const translate = typeof window.t === 'function' ? window.t : null;
-    if (translate) {
+    if (translate && Array.isArray(window.ganfpuPromptCompiler?.fieldOrder)) {
       window.ganfpuPromptCompiler.fieldOrder.forEach(([, prefixKey]) => {
         prefixes[prefixKey] = translate(prefixKey);
       });
@@ -171,7 +170,7 @@
     const modal = el('grillModal'), log = el('grillChatLog'), inputArea = el('grillInput'), applyButton = el('btn-grill-apply');
     if (modal) modal.style.display = 'flex';
     if (log) log.innerHTML = '';
-    if (inputArea) inputArea.value = '';
+    if (inputArea) { inputArea.value = ''; inputArea.disabled = false; }
     if (applyButton) applyButton.disabled = true;
     appendGrillMessage('system', providerLabel());
     await respond();
@@ -210,10 +209,15 @@
   function bind() {
     const sendButton = el('btn-grill-send');
     const applyButton = el('btn-grill-apply');
+    const startButton = el('btn-grill-me');
+    const closeButton = el('btn-grill-close');
+    const modalCloseButton = document.querySelector('#grillModal .modal-close-btn');
     if (!sendButton || !applyButton) return false;
+
     const freshSend = sendButton.cloneNode(true);
     sendButton.replaceWith(freshSend);
     freshSend.onclick = send;
+
     const input = el('grillInput');
     if (input) {
       const freshInput = input.cloneNode(true);
@@ -222,16 +226,32 @@
         if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); }
       });
     }
+
     const freshApply = applyButton.cloneNode(true);
     applyButton.replaceWith(freshApply);
     freshApply.onclick = apply;
     freshApply.disabled = true;
+
+    if (startButton) {
+      const freshStart = startButton.cloneNode(true);
+      startButton.replaceWith(freshStart);
+      freshStart.onclick = start;
+    }
+    if (closeButton) {
+      const freshClose = closeButton.cloneNode(true);
+      closeButton.replaceWith(freshClose);
+      freshClose.onclick = closeGrillMe;
+    }
+    if (modalCloseButton) {
+      const freshModalClose = modalCloseButton.cloneNode(true);
+      modalCloseButton.replaceWith(freshModalClose);
+      freshModalClose.onclick = closeGrillMe;
+    }
+
     window.applyGrillMeResult = apply;
     return true;
   }
 
-  // Explicit bridges used by Normal Mode. The controller remains the single
-  // owner of interview state; these aliases avoid reaching into its internals.
   window.ganfpuStartGrill = start;
   window.ganfpuApplyGrillResult = apply;
   window.startGrillMe = start;

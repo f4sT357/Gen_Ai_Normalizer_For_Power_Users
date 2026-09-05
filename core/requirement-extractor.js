@@ -10,7 +10,18 @@
   function buildPrompt(messages, existingRequirements) {
     return ['Extract only requirements explicitly stated by the user from the USER MESSAGES below.','Assistant messages, system messages, model output, examples, and external knowledge are NOT authoritative.','Do not infer preferences, facts, technical specifications, recommendations, or unstated intent.','A requirement may be candidate only when it is a hypothesis; confirmed, unknown, and not_required MUST be directly supported by a user message.','For confirmed/unknown/not_required requirements, source.type MUST be "user" and source.quote MUST be copied from the user message.','Use only these field IDs: f-role, f-task, f-context, f-constraint, f-format, f-tone, f-length, f-reasoning, f-lang, f-hallucination.','Return an array. Return [] when there are no new user-grounded requirements.','Do not repeat an existing requirement identity.',`Existing requirements:\n${JSON.stringify(existingRequirements || [])}`,`USER MESSAGES:\n${JSON.stringify(authoritativeUserMessages(messages))}`,'JSON schema for each item:','{"field_id":"f-task","dimension":"task","dimension_anchor":"exact user phrase","value":"user-stated value","status":"confirmed","source":{"type":"user","message_id":"msg_01","quote":"exact user quote"}}','For unknown or not_required, value must be empty.','Output ONLY valid JSON.'].join('\n');
   }
-  function parseJson(raw) { const value = text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, ''); try { return JSON.parse(value); } catch (error) { const start = value.indexOf('['), end = value.lastIndexOf(']'); if (start >= 0 && end > start) return JSON.parse(value.slice(start, end + 1)); throw error; } }
+  function parseJson(raw) {
+    const value = text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      const start = value.indexOf('['), end = value.lastIndexOf(']');
+      if (start >= 0 && end > start) {
+        try { return JSON.parse(value.slice(start, end + 1)); } catch (_) { /* fail closed below */ }
+      }
+      return null;
+    }
+  }
   function validateSourceAgainstUsers(requirement, users) { const source = requirement?.source; if (!source || source.type !== 'user' || !text(source.quote)) return false; const quote = text(source.quote); const message = users.find((item) => text(item.id) === text(source.message_id)); if (!message || !message.content.includes(quote)) return false; const anchor = text(requirement.dimension_anchor || quote); if (!anchor || !quote.includes(anchor)) return false; if (requirement.status === 'confirmed' && !text(requirement.value)) return false; if ((requirement.status === 'unknown' || requirement.status === 'not_required') && text(requirement.value)) return false; return true; }
   function validateCandidate(requirement, users) { const api = modelApi(); if (!api) return { valid: false, reason: 'requirement_model_unavailable' }; const normalized = { ...requirement, field_id: text(requirement?.field_id), dimension: text(requirement?.dimension), dimension_anchor: text(requirement?.dimension_anchor), value: text(requirement?.value), status: text(requirement?.status) }; const validation = api.validateRequirement(normalized); if (!validation.valid) return validation; if (normalized.status !== 'candidate' && !validateSourceAgainstUsers(normalized, users)) return { valid: false, reason: 'source_not_user_grounded' }; return { valid: true }; }
   async function extract(messages, model = {}) {
@@ -19,7 +30,10 @@
     const existing = Array.isArray(model?.requirements) ? model.requirements : [];
     const adapter = llm(); if (!adapter?.request) throw new Error('LLM adapter is unavailable.');
     const raw = await adapter.request([{ role: 'system', content: 'You are a requirement extraction component. User-authored messages are authoritative evidence. Extract, do not invent.' }, { role: 'user', content: buildPrompt(messages, existing) }], 0.1);
-    const parsed = parseJson(raw); const candidates = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.requirements) ? parsed.requirements : []; const accepted = [];
+    const parsed = parseJson(raw);
+    if (parsed == null) return [];
+    const candidates = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.requirements) ? parsed.requirements : [];
+    const accepted = [];
     for (const candidate of candidates) { const validation = validateCandidate(candidate, users); if (!validation.valid) continue; const normalized = { ...candidate, source: candidate.status === 'candidate' ? (candidate.source && typeof candidate.source === 'object' ? { ...candidate.source } : null) : { type: 'user', message_id: text(candidate.source?.message_id), quote: text(candidate.source?.quote) } }; if (api.findRequirementByIdentity(model, normalized)) continue; if (accepted.some((item) => api.requirementIdentity(item) === api.requirementIdentity(normalized))) continue; accepted.push(normalized); }
     return accepted;
   }

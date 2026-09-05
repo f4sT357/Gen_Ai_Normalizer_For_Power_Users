@@ -9,7 +9,6 @@ on:
       - '*.html'
       - '.prettierrc'
       - '.github/workflows/format-check.yml'
-      - 'refactor_grill.py'
   pull_request:
     paths:
       - '*.js'
@@ -26,9 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Refactor Grill Me responsibilities
-        if: github.event_name != 'pull_request'
-        run: python refactor_grill.py
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -38,8 +34,6 @@ jobs:
       - name: Commit formatting changes
         if: github.event_name != 'pull_request'
         run: |
-          rm -f refactor_grill.py
-          rm -f refactor-trigger.txt
           if git diff --quiet; then
             echo "No formatting changes."
             exit 0
@@ -47,7 +41,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "refactor: separate Grill Me responsibilities [skip ci]"
+          git commit -m "refactor: format source files [skip ci]"
           git push
       - name: Check formatting
         run: npx --yes prettier@3 --check "*.js" "*.css" "*.html"

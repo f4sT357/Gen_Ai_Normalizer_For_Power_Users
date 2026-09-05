@@ -1,9 +1,6 @@
 (() => {
   'use strict';
   const LOG_VERSION = 4;
-  let lastControllerCall = null;
-  let lastControllerResult = null;
-  let lastControllerError = null;
   let llmCalls = [];
 
   function clone(value) {
@@ -33,30 +30,6 @@
     return true;
   }
 
-  function installControllerProbe() {
-    const controller = window.ganfpuGrillController;
-    if (!controller || typeof controller.send !== 'function') return false;
-    if (controller.send.__ganfpuDebugWrapped) return true;
-    const original = controller.send;
-    const wrapped = async function(...args) {
-      lastControllerError = null;
-      lastControllerResult = null;
-      llmCalls = [];
-      lastControllerCall = { timestamp: new Date().toISOString(), args: clone(args), stateBefore: clone(controller.getState?.() || null) };
-      try {
-        const result = await original(...args);
-        lastControllerResult = clone(controller.getState?.() || result);
-        return result;
-      } catch (error) {
-        lastControllerError = { name: error?.name || 'Error', message: String(error?.message || error), stack: String(error?.stack || '') };
-        throw error;
-      }
-    };
-    wrapped.__ganfpuDebugWrapped = true;
-    controller.send = wrapped;
-    return true;
-  }
-
   function currentLog() {
     const provider = window.ganfpuLLM;
     return {
@@ -65,10 +38,7 @@
       app: 'GANFPU',
       page: location.href,
       provider: provider ? { label: typeof provider.getProviderLabel === 'function' ? provider.getProviderLabel() : '', model: typeof provider.getModel === 'function' ? provider.getModel() : '' } : null,
-      controller_call: clone(lastControllerCall),
       llm_calls: clone(llmCalls),
-      controller_result: clone(lastControllerResult),
-      controller_error: clone(lastControllerError),
       controller_state: clone(window.ganfpuGrillController?.getState?.() || null),
       visible_chat: Array.from(document.querySelectorAll('#grillChatLog > *')).map((node) => String(node.textContent || '').trim()).filter(Boolean)
     };
@@ -122,7 +92,6 @@
   function init() {
     installButton();
     installLLMProbe();
-    installControllerProbe();
   }
 
   window.ganfpuGrillDebug = { getLog: currentLog, copy: copyDebugLog };

@@ -160,11 +160,15 @@
     await respond();
   }
 
-  async function start() {
+  async function start(intentOverride = '') {
     if (!providerReady()) return;
-    const input = el('normal-intent');
-    const intent = text(input?.value);
-    if (!intent) { input?.focus(); return; }
+    const normalInput = el('normal-intent');
+    const powerInput = el('f-task');
+    const intent = text(intentOverride) || text(normalInput?.value) || text(powerInput?.value);
+    if (!intent) {
+      (normalInput || powerInput)?.focus();
+      return;
+    }
     grillState = createState();
     grillState.messages.push({ role: 'user', content: intent, id: 'msg_01' });
     const modal = el('grillModal'), log = el('grillChatLog'), inputArea = el('grillInput'), applyButton = el('btn-grill-apply');

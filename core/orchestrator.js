@@ -2,7 +2,7 @@
   'use strict';
 
   function text(value) {
-    return String(value == null ? '').replace(/\s+/g, ' ').trim();
+    return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
   }
 
   function clone(value) {
@@ -54,11 +54,7 @@
     const current = normalizeDiscovery(discovery);
     const id = text(action.id) || nextActionId(current);
     if (!current.asked.some((item) => text(item.id) === id)) {
-      current.asked.push({
-        id,
-        question: text(action.question),
-        target: action.target ? { ...action.target } : null
-      });
+      current.asked.push({ id, question: text(action.question), target: action.target ? { ...action.target } : null });
     }
     return current;
   }
@@ -72,31 +68,9 @@
     };
   }
 
-  function hasConfirmedRequirement(model, fieldId, dimension) {
-    return (Array.isArray(model?.requirements) ? model.requirements : []).some((requirement) =>
-      text(requirement?.status) === 'confirmed' &&
-      text(requirement?.field_id) === fieldId &&
-      text(requirement?.dimension) === dimension
-    );
-  }
-
-  function hasResolvedRequirement(model, fieldId, dimension) {
-    return (Array.isArray(model?.requirements) ? model.requirements : []).some((requirement) =>
-      ['confirmed', 'unknown', 'not_required'].includes(text(requirement?.status)) &&
-      text(requirement?.field_id) === fieldId &&
-      text(requirement?.dimension) === dimension
-    );
-  }
-
-  function knowledgeTopic(model) {
-    const intent = model?.intent;
-    return text(intent?.topic) || text(intent?.subject) || text(intent?.raw) || '';
-  }
-
   function knowledgeIsSufficient(model) {
-    const items = Array.isArray(model?.knowledge) ? model.knowledge : [];
-    return items.some((item) =>
-      Array.isArray(item?.findings) && item.findings.length > 0
+    return (Array.isArray(model?.knowledge) ? model.knowledge : []).some(
+      (item) => Array.isArray(item?.findings) && item.findings.length > 0
     );
   }
 
@@ -134,9 +108,8 @@
 
     const taskType = text(currentModel?.intent?.task_type);
 
-    // Knowledge is reusable evidence, not a completion signal by itself.
-    // Discover it once, then let Requirement Discovery determine whether
-    // user-facing requirements are still needed.
+    // Knowledge is evidence, not a completion signal. Discover it before
+    // requirement discovery, but never terminate merely because evidence exists.
     if (
       (taskType === 'knowledge' || taskType === 'research' || taskType === 'recommendation') &&
       knowledgeApi?.discover &&
@@ -158,11 +131,7 @@
         question: 'この依頼で最終的に何を実現したいですか?',
         target: { field_id: 'f-task', dimension: 'goal' }
       };
-      return {
-        action,
-        model: currentModel,
-        discovery: recordAsked(currentDiscovery, action)
-      };
+      return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
     }
 
     if (discoveryApi?.nextAction) {
@@ -173,69 +142,25 @@
       });
 
       if (action?.type === 'ask_user') {
-        return {
-          action,
-          model: currentModel,
-          discovery: recordAsked(currentDiscovery, action)
-        };
+        return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
       }
 
       if (action?.type === 'complete') {
-        // Requirement Discovery may only complete after it has resolved the
-        // requirements it considers necessary. Knowledge existence alone is
-        // never sufficient for completion.
         currentDiscovery.completed = true;
-        return {
-          action: completionAction(currentModel),
-          model: currentModel,
-          discovery: currentDiscovery
-        };
+        return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
       }
     }
 
-    // A knowledge request needs evidence before it can complete. This is an
-    // internal readiness check, not a substitute for user requirements.
-    if (taskType === 'knowledge') {
-      if (knowledgeIsSufficient(currentModel)) {
-        currentDiscovery.completed = true;
-        return {
-          action: completionAction(currentModel),
-          model: currentModel,
-          discovery: currentDiscovery
-        };
-      }
-      return {
-        action: {
-          type: 'ask_user',
-          id: nextActionId(currentDiscovery),
-          question: '知りたい内容について、もう少し具体的に教えてください。',
-          target: { field_id: 'f-task', dimension: 'scope' }
-        },
-        model: currentModel,
-        discovery: recordAsked(currentDiscovery, {
-          type: 'ask_user',
-          id: nextActionId(currentDiscovery),
-          question: '知りたい内容について、もう少し具体的に教えてください。',
-          target: { field_id: 'f-task', dimension: 'scope' }
-        })
-      };
+    // A pure knowledge request may complete once evidence has actually been
+    // gathered and Requirement Discovery has no additional user requirement.
+    if (taskType === 'knowledge' && knowledgeIsSufficient(currentModel)) {
+      currentDiscovery.completed = true;
+      return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
     }
 
     currentDiscovery.completed = true;
-    return {
-      action: completionAction(currentModel),
-      model: currentModel,
-      discovery: currentDiscovery
-    };
+    return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
   }
 
-  window.ganfpuCore = Object.freeze({
-    step,
-    normalizeDiscovery,
-    normalizeModel,
-    hasConfirmedRequirement,
-    hasResolvedRequirement,
-    knowledgeIsSufficient,
-    knowledgeTopic
-  });
+  window.ganfpuCore = Object.freeze({ step, normalizeDiscovery, normalizeModel, knowledgeIsSufficient });
 })();

@@ -6,7 +6,9 @@
   let compilerPromise = null;
 
   function text(value) {
-    return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
+    return String(value == null ? '' : value)
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   function createState() {

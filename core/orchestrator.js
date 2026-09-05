@@ -1,7 +1,6 @@
 (() => {
   'use strict';
 
-  const llm = () => window.ganfpuLLMAdapter || window.ganfpuLLM;
   const requirementApi = () => window.ganfpuRequirementModel;
 
   function text(value) {

@@ -70,7 +70,7 @@
     );
   }
 
-  async function step({ messages = [], model = {}, discovery = {} } = {}) {
+  async function step({ messages = [], model = {}, discovery = {}, currentAction = null } = {}) {
     const hasUserMessage = Array.isArray(messages) && messages.some(
       (message) => message?.role === 'user' && !message?.synthetic && text(message.content)
     );
@@ -113,16 +113,13 @@
     }
 
     if (discoveryApi?.nextAction) {
-      const action = await discoveryApi.nextAction({ messages, model: currentModel, discovery: currentDiscovery });
+      const action = await discoveryApi.nextAction({ messages, model: currentModel, discovery: currentDiscovery, currentAction });
       if (action?.type === 'ask_user') return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
       if (action?.type === 'complete') {
         currentDiscovery.completed = true;
         return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
       }
 
-      // A failed/blocked discovery step is not equivalent to completion.
-      // Keep the interview open so a transient provider failure cannot cause
-      // an incomplete Requirement Model to be applied as if it were complete.
       return {
         action: null,
         status: 'blocked',

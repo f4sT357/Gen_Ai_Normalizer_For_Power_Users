@@ -11,10 +11,10 @@
 
   function text(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
   function userMessages(messages) { return (messages || []).filter((m) => m?.role === 'user' && !m.synthetic).map((m) => text(m.content)).filter(Boolean); }
-  function selectionRequest(messages) { return /(?:おすすめ|推薦|推奨|選んで|選びたい|選択|比較|候補|どれがいい|どれが良い|どれにすべき|どれにしたら)/i.test(userMessages(messages).join('\n')); }
+  function selectionRequest(messages) { return /(?:おすすめ|推薦|推奨|選び方|選んで|選びたい|選択|比較|候補|どれがいい|どれが良い|どれにすべき|どれにしたら)/i.test(userMessages(messages).join('\n')); }
   function selectionNode(state) {
     const nodes = Array.isArray(state?.requirementNodes) ? state.requirementNodes : [];
-    return nodes.find((n) => /selection_criteria/i.test(text(n?.dimension))) || nodes.find((n) => text(n?.field_id) === 'f-constraint' && /おすすめ|推薦|推奨|選ん|比較|候補/.test(text(n?.anchor)));
+    return nodes.find((n) => /selection_criteria/i.test(text(n?.dimension))) || nodes.find((n) => text(n?.field_id) === 'f-constraint' && /おすすめ|推薦|推奨|選び方|選ん|比較|候補/.test(text(n?.anchor)));
   }
 
   function cacheKey(messages) {

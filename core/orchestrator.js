@@ -88,10 +88,26 @@
         currentAction,
         model,
       });
+      if (Array.isArray(next)) {
+        let updated = model;
+        for (const requirement of next) {
+          if (typeof requirementApi()?.addRequirement !== 'function') continue;
+          updated = requirementApi().addRequirement(updated, requirement);
+        }
+        return updated;
+      }
       return next?.model || model;
     }
     if (typeof extractor.extract !== 'function') return model;
     const next = await extractor.extract(messages, model);
+    if (Array.isArray(next)) {
+      let updated = model;
+      for (const requirement of next) {
+        if (typeof requirementApi()?.addRequirement !== 'function') continue;
+        updated = requirementApi().addRequirement(updated, requirement);
+      }
+      return updated;
+    }
     return next?.model || model;
   }
 
@@ -150,6 +166,7 @@
       model: currentModel,
       discovery: currentDiscovery,
       currentAction,
+      latestUserMessage: latestUserMessage(messages),
     });
     if (!next) return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };
     if (next.type === 'complete') {

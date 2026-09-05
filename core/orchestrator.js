@@ -166,6 +166,7 @@
       model: currentModel,
       discovery: currentDiscovery,
       currentAction,
+      messages,
       latestUserMessage: latestUserMessage(messages),
     });
     if (!next) return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };

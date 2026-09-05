@@ -3,6 +3,7 @@
 
   const el = (id) => document.getElementById(id);
   let grillState = createState();
+  let compilerPromise = null;
 
   function text(value) {
     return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -14,7 +15,8 @@
       model: { version: 1, intent: null, requirements: [], knowledge: [], pending: [] },
       discovery: { asked: [], completed: false },
       currentAction: null,
-      interviewComplete: false
+      interviewComplete: false,
+      generatedPrompt: ''
     };
   }
 
@@ -54,6 +56,49 @@
     }
   }
 
+  function ensurePromptCompiler() {
+    if (window.ganfpuPromptCompiler?.compile) return Promise.resolve(window.ganfpuPromptCompiler);
+    if (compilerPromise) return compilerPromise;
+
+    compilerPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'core/prompt-compiler.js';
+      script.async = true;
+      script.onload = () => {
+        if (window.ganfpuPromptCompiler?.compile) resolve(window.ganfpuPromptCompiler);
+        else reject(new Error('Prompt Compiler loaded but API is unavailable.'));
+      };
+      script.onerror = () => reject(new Error('Prompt Compiler could not be loaded.'));
+      document.head.appendChild(script);
+    });
+    return compilerPromise;
+  }
+
+  function compileGeneratedPrompt() {
+    const requirements = Array.isArray(grillState.model?.requirements) ? grillState.model.requirements : [];
+    const specification = {};
+    const prefixes = {};
+
+    requirements.forEach((requirement) => {
+      if (text(requirement?.status) !== 'confirmed') return;
+      const fieldId = text(requirement?.field_id);
+      const value = text(requirement?.value);
+      if (!fieldId || !value) return;
+      const field = fieldId.replace(/^f-/, '');
+      specification[field] = value;
+    });
+
+    const lang = document.documentElement.lang || 'ja';
+    const i18n = window.I18N;
+    if (i18n?.[lang]) {
+      Object.keys(i18n[lang]).forEach((key) => {
+        if (key.startsWith('prefix-')) prefixes[key] = i18n[lang][key];
+      });
+    }
+
+    return window.ganfpuPromptCompiler.compile(specification, prefixes);
+  }
+
   async function respond() {
     const send = el('btn-grill-send');
     const input = el('grillInput');
@@ -74,6 +119,18 @@
       } else if (result.action?.type === 'complete') {
         grillState.interviewComplete = true;
         grillState.discovery.completed = true;
+        try {
+          await ensurePromptCompiler();
+          grillState.generatedPrompt = compileGeneratedPrompt();
+          const resultEl = el('normal-result');
+          const resultWrap = el('normal-result-wrap');
+          if (resultEl && resultWrap && grillState.generatedPrompt) {
+            resultEl.textContent = grillState.generatedPrompt;
+            resultWrap.hidden = false;
+          }
+        } catch (error) {
+          console.warn('[GANFPU] Prompt compilation failed:', error);
+        }
         appendGrillMessage('system', 'No further user-grounded requirement needs clarification. You can apply the collected requirements.');
         const apply = el('btn-grill-apply');
         if (apply) apply.disabled = false;

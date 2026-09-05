@@ -92,6 +92,21 @@
     return model;
   }
 
+  async function resolveIntent(messages, currentModel, intentApi) {
+    if (currentModel.intent) return currentModel.intent;
+    if (!intentApi) return null;
+
+    // The heuristic is deliberately authoritative for obvious routing cases.
+    // Only genuinely ambiguous requests pay for the LLM classification call.
+    if (typeof intentApi.heuristicIntent === 'function') {
+      const heuristic = intentApi.heuristicIntent(messages);
+      if (text(heuristic?.task_type) !== 'unknown') return heuristic;
+    }
+
+    if (typeof intentApi.analyze === 'function') return intentApi.analyze(messages);
+    return null;
+  }
+
   async function step({ messages = [], model = {}, discovery = {}, currentAction = null } = {}) {
     const hasUserMessage = Array.isArray(messages) && messages.some(
       (message) => message?.role === 'user' && !message?.synthetic && text(message.content)
@@ -105,8 +120,8 @@
     let currentModel = normalizeModel(model, model?.intent || null);
     let currentDiscovery = normalizeDiscovery(discovery);
 
-    if (!currentModel.intent && intentApi?.analyze) {
-      currentModel.intent = await intentApi.analyze(messages);
+    if (!currentModel.intent) {
+      currentModel.intent = await resolveIntent(messages, currentModel, intentApi);
     }
 
     currentModel = await extractRequirements({ messages, model: currentModel, currentAction, extractor });

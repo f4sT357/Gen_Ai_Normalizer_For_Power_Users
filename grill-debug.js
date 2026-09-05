@@ -1,9 +1,9 @@
 (() => {
   'use strict';
-  const LOG_VERSION = 3;
-  let lastEngineCall = null;
-  let lastEngineResult = null;
-  let lastEngineError = null;
+  const LOG_VERSION = 4;
+  let lastControllerCall = null;
+  let lastControllerResult = null;
+  let lastControllerError = null;
   let llmCalls = [];
 
   function clone(value) {
@@ -18,7 +18,7 @@
     const wrapped = async function(messages, temperature) {
       const call = { timestamp: new Date().toISOString(), temperature, messages: clone(messages), response: null, error: null };
       llmCalls.push(call);
-      if (llmCalls.length > 10) llmCalls = llmCalls.slice(-10);
+      if (llmCalls.length > 20) llmCalls = llmCalls.slice(-20);
       try {
         const result = await original(messages, temperature);
         call.response = String(result == null ? '' : result);
@@ -33,27 +33,27 @@
     return true;
   }
 
-  function installEngineProbe() {
-    const engine = window.ganfpuGrillEngine;
-    if (!engine || typeof engine.nextQuestion !== 'function') return false;
-    if (engine.nextQuestion.__ganfpuDebugWrapped) return true;
-    const original = engine.nextQuestion;
-    const wrapped = async function(messages, interviewState) {
-      lastEngineError = null;
-      lastEngineResult = null;
+  function installControllerProbe() {
+    const controller = window.ganfpuGrillController;
+    if (!controller || typeof controller.send !== 'function') return false;
+    if (controller.send.__ganfpuDebugWrapped) return true;
+    const original = controller.send;
+    const wrapped = async function(...args) {
+      lastControllerError = null;
+      lastControllerResult = null;
       llmCalls = [];
-      lastEngineCall = { timestamp: new Date().toISOString(), messages: clone(messages), interviewState: clone(interviewState || {}) };
+      lastControllerCall = { timestamp: new Date().toISOString(), args: clone(args), stateBefore: clone(controller.getState?.() || null) };
       try {
-        const result = await original(messages, interviewState || {});
-        lastEngineResult = clone(result);
+        const result = await original(...args);
+        lastControllerResult = clone(controller.getState?.() || result);
         return result;
       } catch (error) {
-        lastEngineError = { name: error?.name || 'Error', message: String(error?.message || error), stack: String(error?.stack || '') };
+        lastControllerError = { name: error?.name || 'Error', message: String(error?.message || error), stack: String(error?.stack || '') };
         throw error;
       }
     };
     wrapped.__ganfpuDebugWrapped = true;
-    engine.nextQuestion = wrapped;
+    controller.send = wrapped;
     return true;
   }
 
@@ -65,10 +65,11 @@
       app: 'GANFPU',
       page: location.href,
       provider: provider ? { label: typeof provider.getProviderLabel === 'function' ? provider.getProviderLabel() : '', model: typeof provider.getModel === 'function' ? provider.getModel() : '' } : null,
-      engine_call: clone(lastEngineCall),
+      controller_call: clone(lastControllerCall),
       llm_calls: clone(llmCalls),
-      engine_result: clone(lastEngineResult),
-      engine_error: clone(lastEngineError),
+      controller_result: clone(lastControllerResult),
+      controller_error: clone(lastControllerError),
+      controller_state: clone(window.ganfpuGrillController?.getState?.() || null),
       visible_chat: Array.from(document.querySelectorAll('#grillChatLog > *')).map((node) => String(node.textContent || '').trim()).filter(Boolean)
     };
   }
@@ -111,7 +112,7 @@
     button.type = 'button';
     button.id = 'btn-grill-debug-copy';
     button.textContent = 'Copy Debug Log';
-    button.title = 'Copy Grill Engine diagnostics';
+    button.title = 'Copy GANFPU controller diagnostics';
     button.onclick = copyDebugLog;
     button.style.cssText = 'position:fixed !important;right:12px !important;bottom:12px !important;z-index:2147483647 !important;display:block !important;visibility:visible !important;opacity:1 !important;pointer-events:auto !important;padding:10px 14px;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:600 13px sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.2);cursor:pointer;';
     document.body.appendChild(button);
@@ -121,8 +122,7 @@
   function init() {
     installButton();
     installLLMProbe();
-    installEngineProbe();
-    if (!document.getElementById('btn-grill-debug-copy') || !window.ganfpuLLM || !window.ganfpuGrillEngine) setTimeout(init, 250);
+    installControllerProbe();
   }
 
   window.ganfpuGrillDebug = { getLog: currentLog, copy: copyDebugLog };

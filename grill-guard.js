@@ -7,20 +7,31 @@
   const originalRequest = window.ganfpuLLM?.request;
   if (typeof originalRequest !== 'function') return;
 
-  const QUESTION_RE = /[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/;
-  const ANSWER_RE = /(おすすめ|推薦|候補|商品|モデル|解決策|結論|以下の.*(製品|商品|方法)|試してみて|検討してみて|recommended|recommendation|you should|here are|for example)/i;
+  const QUESTION_RE =
+    /[?？]|ですか[。！!]?|ますか[。！!]?|でしょうか[。！!]?|どのよう|どちら|何を|何が|どんな|どれ/;
+  const ANSWER_RE =
+    /(おすすめ|推薦|候補|商品|モデル|解決策|結論|以下の.*(製品|商品|方法)|試してみて|検討してみて|recommended|recommendation|you should|here are|for example)/i;
   const JSON_REQUEST_RE = /(return|output)\s+only\s+(valid\s+)?json|ONLY\s+(VALID\s+)?JSON/i;
 
   function isInterview(messages) {
     const system = messages?.find((m) => m?.role === 'system')?.content || '';
-    return system.includes('requirements-interview phase') || system.includes('requirements interview');
+    return (
+      system.includes('requirements-interview phase') || system.includes('requirements interview')
+    );
   }
 
   function isStructuredStage(messages) {
-    return (messages || []).some((message) =>
-      message?.role === 'system' && JSON_REQUEST_RE.test(String(message.content || ''))
-    ) || (messages || []).slice(-2).some((message) =>
-      message?.role === 'user' && JSON_REQUEST_RE.test(String(message.content || ''))
+    return (
+      (messages || []).some(
+        (message) =>
+          message?.role === 'system' && JSON_REQUEST_RE.test(String(message.content || ''))
+      ) ||
+      (messages || [])
+        .slice(-2)
+        .some(
+          (message) =>
+            message?.role === 'user' && JSON_REQUEST_RE.test(String(message.content || ''))
+        )
     );
   }
 
@@ -53,10 +64,13 @@
   }
 
   async function guardedRequest(messages, temperature) {
-    if (!isInterview(messages) || isStructuredStage(messages)) return originalRequest(messages, temperature);
+    if (!isInterview(messages) || isStructuredStage(messages))
+      return originalRequest(messages, temperature);
 
     const guardedMessages = augment(messages);
-    let reply = (await originalRequest(guardedMessages, Math.min(Number(temperature) || 0.7, 0.5))).trim();
+    let reply = (
+      await originalRequest(guardedMessages, Math.min(Number(temperature) || 0.7, 0.5))
+    ).trim();
     if (looksLikeInterviewQuestion(reply)) return reply;
 
     const retryMessages = [

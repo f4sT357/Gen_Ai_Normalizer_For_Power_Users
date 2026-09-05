@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GANFPU - Generative AI Normalizer For Power Users</title>
-    <meta name="description" content="A local-first, multi-language prompt engineering engine for power users to standardize AI prompt composition." />
+    <meta
+      name="description"
+      content="A local-first, multi-language prompt engineering engine for power users to standardize AI prompt composition."
+    />
     <meta name="theme-color" content="#7c3aed" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-touch-fullscreen" content="yes" />
@@ -14,7 +17,10 @@
     <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Syne:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="style.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
   </head>
@@ -24,36 +30,334 @@
         <div class="logo">GANFPU <span id="hdr-subtitle"></span></div>
         <div class="header-right">
           <div class="lang-toggle">
-            <button class="lang-btn" id="btn-ja" onclick="setLang('ja')">JA</button><button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button><button class="lang-btn" id="btn-zh" onclick="setLang('zh')">ZH</button><button class="lang-btn" id="btn-ko" onclick="setLang('ko')">KO</button><button class="lang-btn" id="btn-es" onclick="setLang('es')">ES</button><button class="lang-btn" id="btn-fr" onclick="setLang('fr')">FR</button>
+            <button class="lang-btn" id="btn-ja" onclick="setLang('ja')">JA</button
+            ><button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button
+            ><button class="lang-btn" id="btn-zh" onclick="setLang('zh')">ZH</button
+            ><button class="lang-btn" id="btn-ko" onclick="setLang('ko')">KO</button
+            ><button class="lang-btn" id="btn-es" onclick="setLang('es')">ES</button
+            ><button class="lang-btn" id="btn-fr" onclick="setLang('fr')">FR</button>
           </div>
           <div class="version-tag">v2.0 · MODULAR</div>
         </div>
       </header>
-      <div class="score-bar"><div class="score-label">QUALITY SCORE</div><div class="score-track"><div class="score-fill" id="scoreFill"></div></div><div class="score-num" id="scoreNum">0%</div><div class="score-hint" id="scoreHint"></div></div>
+      <div class="score-bar">
+        <div class="score-label">QUALITY SCORE</div>
+        <div class="score-track"><div class="score-fill" id="scoreFill"></div></div>
+        <div class="score-num" id="scoreNum">0%</div>
+        <div class="score-hint" id="scoreHint"></div>
+      </div>
       <div class="main-grid">
         <div class="left-col">
-          <div class="form-section" id="sec-role"><div class="field-header"><span class="field-tag optional" id="tag-role"></span><label for="f-role" id="lbl-role"></label><button class="collapse-btn" onclick="toggleCollapse('sec-role')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-role"></p><input type="text" id="f-role" oninput="update()" /></div></div>
-          <div class="form-section" id="sec-task"><div class="field-header"><span class="field-tag" id="tag-task"></span><label for="f-task" id="lbl-task"></label><button class="collapse-btn" onclick="toggleCollapse('sec-task')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-task"></p><textarea id="f-task" oninput="update()"></textarea></div></div>
-          <div class="form-section" id="sec-context"><div class="field-header"><span class="field-tag optional" id="tag-context"></span><label for="f-context" id="lbl-context"></label><button class="collapse-btn" onclick="toggleCollapse('sec-context')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-context"></p><textarea id="f-context" oninput="update()"></textarea></div></div>
-          <div class="form-section" id="sec-constraint"><div class="field-header"><span class="field-tag optional" id="tag-constraint"></span><label for="f-constraint" id="lbl-constraint"></label><button class="collapse-btn" onclick="toggleCollapse('sec-constraint')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-constraint"></p><textarea id="f-constraint" oninput="update()"></textarea></div></div>
-          <div class="form-section" id="sec-hallucination"><div class="field-header"><span class="field-tag optional" id="tag-hallucination"></span><label for="f-hallucination" id="lbl-hallucination"></label><button class="collapse-btn" onclick="toggleCollapse('sec-hallucination')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-hallucination"></p><select id="f-hallucination" onchange="update()"></select><textarea id="f-hallucination-custom" oninput="update()" style="display:none;margin-top:8px"></textarea></div></div>
-          <div class="form-section" id="sec-format"><div class="field-header"><span class="field-tag" id="tag-format"></span><label for="f-format" id="lbl-format"></label><button class="collapse-btn" onclick="toggleCollapse('sec-format')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-format"></p><select id="f-format" onchange="update()"></select><input type="text" id="f-format-custom" oninput="update()" style="display:none;margin-top:8px" /></div></div>
-          <div class="form-section" id="sec-tone"><div class="field-header"><span class="field-tag optional" id="tag-tone"></span><label for="f-tone" id="lbl-tone"></label><button class="collapse-btn" onclick="toggleCollapse('sec-tone')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-tone"></p><select id="f-tone" onchange="update()"></select></div></div>
-          <div class="form-section" id="sec-length"><div class="field-header"><span class="field-tag optional" id="tag-length"></span><label for="f-length" id="lbl-length"></label><button class="collapse-btn" onclick="toggleCollapse('sec-length')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-length"></p><select id="f-length" onchange="update()"></select></div></div>
-          <div class="form-section" id="sec-reasoning"><div class="field-header"><span class="field-tag optional" id="tag-reasoning"></span><label for="f-reasoning" id="lbl-reasoning"></label><button class="collapse-btn" onclick="toggleCollapse('sec-reasoning')" tabindex="-1">▾</button></div><div class="field-body"><p class="field-desc" id="desc-reasoning"></p><select id="f-reasoning" onchange="update()"></select><p class="field-note" id="note-reasoning"></p></div></div>
-          <div class="form-section" id="sec-lang"><div class="field-header"><span class="field-tag optional" id="tag-lang"></span><label for="f-lang" id="lbl-lang"></label><button class="collapse-btn" onclick="toggleCollapse('sec-lang')" tabindex="-1">▾</button></div><div class="field-body"><select id="f-lang" onchange="update()"></select></div></div>
-          <div class="actions"><button class="btn btn-danger btn-sm" id="btn-reset" onclick="resetAll()"></button></div>
+          <div class="form-section" id="sec-role">
+            <div class="field-header">
+              <span class="field-tag optional" id="tag-role"></span
+              ><label for="f-role" id="lbl-role"></label
+              ><button class="collapse-btn" onclick="toggleCollapse('sec-role')" tabindex="-1">
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-role"></p>
+              <input type="text" id="f-role" oninput="update()" />
+            </div>
+          </div>
+          <div class="form-section" id="sec-task">
+            <div class="field-header">
+              <span class="field-tag" id="tag-task"></span><label for="f-task" id="lbl-task"></label
+              ><button class="collapse-btn" onclick="toggleCollapse('sec-task')" tabindex="-1">
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-task"></p>
+              <textarea id="f-task" oninput="update()"></textarea>
+            </div>
+          </div>
+          <div class="form-section" id="sec-context">
+            <div class="field-header">
+              <span class="field-tag optional" id="tag-context"></span
+              ><label for="f-context" id="lbl-context"></label
+              ><button class="collapse-btn" onclick="toggleCollapse('sec-context')" tabindex="-1">
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-context"></p>
+              <textarea id="f-context" oninput="update()"></textarea>
+            </div>
+          </div>
+          <div class="form-section" id="sec-constraint">
+            <div class="field-header">
+              <span class="field-tag optional" id="tag-constraint"></span
+              ><label for="f-constraint" id="lbl-constraint"></label
+              ><button
+                class="collapse-btn"
+                onclick="toggleCollapse('sec-constraint')"
+                tabindex="-1"
+              >
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-constraint"></p>
+              <textarea id="f-constraint" oninput="update()"></textarea>
+            </div>
+          </div>
+          <div class="form-section" id="sec-hallucination">
+            <div class="field-header">
+              <span class="field-tag optional" id="tag-hallucination"></span
+              ><label for="f-hallucination" id="lbl-hallucination"></label
+              ><button
+                class="collapse-btn"
+                onclick="toggleCollapse('sec-hallucination')"
+                tabindex="-1"
+              >
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-hallucination"></p>
+              <select id="f-hallucination" onchange="update()"></select
+              ><textarea
+                id="f-hallucination-custom"
+                oninput="update()"
+                style="display: none; margin-top: 8px"
+              ></textarea>
+            </div>
+          </div>
+          <div class="form-section" id="sec-format">
+            <div class="field-header">
+              <span class="field-tag" id="tag-format"></span
+              ><label for="f-format" id="lbl-format"></label
+              ><button class="collapse-btn" onclick="toggleCollapse('sec-format')" tabindex="-1">
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-format"></p>
+              <select id="f-format" onchange="update()"></select
+              ><input
+                type="text"
+                id="f-format-custom"
+                oninput="update()"
+                style="display: none; margin-top: 8px"
+              />
+            </div>
+          </div>
+          <div class="form-section" id="sec-tone">
+            <div class="field-header">
+              <span class="field-tag optional" id="tag-tone"></span
+              ><label for="f-tone" id="lbl-tone"></label
+              ><button class="collapse-btn" onclick="toggleCollapse('sec-tone')" tabindex="-1">
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-tone"></p>
+              <select id="f-tone" onchange="update()"></select>
+            </div>
+          </div>
+          <div class="form-section" id="sec-length">
+            <div class="field-header">
+              <span class="field-tag optional" id="tag-length"></span
+              ><label for="f-length" id="lbl-length"></label
+              ><button class="collapse-btn" onclick="toggleCollapse('sec-length')" tabindex="-1">
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-length"></p>
+              <select id="f-length" onchange="update()"></select>
+            </div>
+          </div>
+          <div class="form-section" id="sec-reasoning">
+            <div class="field-header">
+              <span class="field-tag optional" id="tag-reasoning"></span
+              ><label for="f-reasoning" id="lbl-reasoning"></label
+              ><button class="collapse-btn" onclick="toggleCollapse('sec-reasoning')" tabindex="-1">
+                ▾
+              </button>
+            </div>
+            <div class="field-body">
+              <p class="field-desc" id="desc-reasoning"></p>
+              <select id="f-reasoning" onchange="update()"></select>
+              <p class="field-note" id="note-reasoning"></p>
+            </div>
+          </div>
+          <div class="form-section" id="sec-lang">
+            <div class="field-header">
+              <span class="field-tag optional" id="tag-lang"></span
+              ><label for="f-lang" id="lbl-lang"></label
+              ><button class="collapse-btn" onclick="toggleCollapse('sec-lang')" tabindex="-1">
+                ▾
+              </button>
+            </div>
+            <div class="field-body"><select id="f-lang" onchange="update()"></select></div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-danger btn-sm" id="btn-reset" onclick="resetAll()"></button>
+          </div>
         </div>
         <div class="right-panel">
-          <div class="panel-card" id="lm-panel"><div class="panel-title" id="title-lm-connect">LM Studio Link</div><div class="lm-row" style="display:flex;gap:8px"><input type="text" id="lm-endpoint" value="http://localhost:1234/v1" style="flex:1" /><button class="btn btn-secondary btn-sm" id="btn-lm-fetch" onclick="fetchLMModels()" style="white-space:nowrap;height:38px">Fetch</button></div><div class="lm-row" style="margin-top:10px"><select id="lm-model-select" onchange="onLMModelChange()"><option value="" id="opt-lm-placeholder">-- Select Model --</option></select></div><div class="lm-actions-row" id="lm-actions-area" style="display:none;margin-top:10px"><button class="btn btn-primary" id="btn-grill-me" style="width:100%;justify-content:center;display:flex;align-items:center;gap:6px;font-weight:bold">🔥 Grill Me</button></div></div>
-          <div class="panel-card"><div class="panel-title">PREVIEW <button class="preview-edit-toggle" id="editToggle" onclick="toggleEditMode()"></button></div><div class="preview-area" id="preview"></div><div class="char-count" id="charCount"></div><div class="prompt-actions"><button class="btn btn-primary copy-btn" id="copyBtn" onclick="copyPrompt()"><span id="copy-text"></span></button><button class="btn btn-download" id="downloadBtn" onclick="downloadPrompt()"><span id="download-text"></span></button><button class="btn btn-share" id="shareBtn" onclick="sharePrompt()" style="display:none"><span id="share-text"></span></button></div><div class="shortcut-hint" id="shortcut-hint"></div></div>
-          <div class="panel-card"><div class="panel-title">TEMPLATES</div><div class="cat-filter" id="catFilter"></div><div class="template-list" id="templateList"><div class="empty-state" id="emptyState"></div></div><div class="template-save-row"><input type="text" id="templateName" /><button class="btn btn-secondary btn-sm" id="btn-save" onclick="saveTemplate()"></button></div><div class="export-row"><button class="btn btn-secondary btn-sm" id="btn-export" onclick="exportTemplates()"></button><button class="btn btn-secondary btn-sm" id="btn-share-tmpl" onclick="shareTemplates()" style="display:none"></button><label class="btn btn-secondary btn-sm" id="btn-import-label" style="cursor:pointer;margin:0;justify-content:center"><span id="btn-import-text"></span><input type="file" accept=".json" onchange="importTemplates(event)" style="display:none" /></label></div></div>
+          <div class="panel-card" id="lm-panel">
+            <div class="panel-title" id="title-lm-connect">LM Studio Link</div>
+            <div class="lm-row" style="display: flex; gap: 8px">
+              <input
+                type="text"
+                id="lm-endpoint"
+                value="http://localhost:1234/v1"
+                style="flex: 1"
+              /><button
+                class="btn btn-secondary btn-sm"
+                id="btn-lm-fetch"
+                onclick="fetchLMModels()"
+                style="white-space: nowrap; height: 38px"
+              >
+                Fetch
+              </button>
+            </div>
+            <div class="lm-row" style="margin-top: 10px">
+              <select id="lm-model-select" onchange="onLMModelChange()">
+                <option value="" id="opt-lm-placeholder">-- Select Model --</option>
+              </select>
+            </div>
+            <div
+              class="lm-actions-row"
+              id="lm-actions-area"
+              style="display: none; margin-top: 10px"
+            >
+              <button
+                class="btn btn-primary"
+                id="btn-grill-me"
+                style="
+                  width: 100%;
+                  justify-content: center;
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                  font-weight: bold;
+                "
+              >
+                🔥 Grill Me
+              </button>
+            </div>
+          </div>
+          <div class="panel-card">
+            <div class="panel-title">
+              PREVIEW
+              <button
+                class="preview-edit-toggle"
+                id="editToggle"
+                onclick="toggleEditMode()"
+              ></button>
+            </div>
+            <div class="preview-area" id="preview"></div>
+            <div class="char-count" id="charCount"></div>
+            <div class="prompt-actions">
+              <button class="btn btn-primary copy-btn" id="copyBtn" onclick="copyPrompt()">
+                <span id="copy-text"></span></button
+              ><button class="btn btn-download" id="downloadBtn" onclick="downloadPrompt()">
+                <span id="download-text"></span></button
+              ><button
+                class="btn btn-share"
+                id="shareBtn"
+                onclick="sharePrompt()"
+                style="display: none"
+              >
+                <span id="share-text"></span>
+              </button>
+            </div>
+            <div class="shortcut-hint" id="shortcut-hint"></div>
+          </div>
+          <div class="panel-card">
+            <div class="panel-title">TEMPLATES</div>
+            <div class="cat-filter" id="catFilter"></div>
+            <div class="template-list" id="templateList">
+              <div class="empty-state" id="emptyState"></div>
+            </div>
+            <div class="template-save-row">
+              <input type="text" id="templateName" /><button
+                class="btn btn-secondary btn-sm"
+                id="btn-save"
+                onclick="saveTemplate()"
+              ></button>
+            </div>
+            <div class="export-row">
+              <button
+                class="btn btn-secondary btn-sm"
+                id="btn-export"
+                onclick="exportTemplates()"
+              ></button
+              ><button
+                class="btn btn-secondary btn-sm"
+                id="btn-share-tmpl"
+                onclick="shareTemplates()"
+                style="display: none"
+              ></button
+              ><label
+                class="btn btn-secondary btn-sm"
+                id="btn-import-label"
+                style="cursor: pointer; margin: 0; justify-content: center"
+                ><span id="btn-import-text"></span
+                ><input
+                  type="file"
+                  accept=".json"
+                  onchange="importTemplates(event)"
+                  style="display: none"
+              /></label>
+            </div>
+          </div>
         </div>
       </div>
     </div>
     <div class="toast" id="toast"></div>
-    <div class="modal-overlay" id="grillModal" style="display:none"><div class="modal-card grill-card"><div class="modal-header"><div class="modal-title" id="grill-title-text">🔥 Grill Me</div><button class="modal-close-btn">×</button></div><div class="modal-body grill-body"><div class="grill-chat-log" id="grillChatLog"></div><div class="grill-input-row"><textarea id="grillInput" rows="2" style="resize:none"></textarea><button class="btn btn-primary" id="btn-grill-send" style="height:auto;align-self:stretch">Send</button></div></div><div class="modal-footer"><button class="btn btn-success" id="btn-grill-apply"></button><button class="btn btn-secondary" id="btn-grill-close"></button></div></div></div>
-    <button id="btn-grill-debug-copy" type="button" onclick="window.ganfpuGrillDebug && window.ganfpuGrillDebug.copy()" title="Copy GANFPU controller diagnostics" style="position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:600 13px sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.2);cursor:pointer;">Copy Debug Log</button>
+    <div class="modal-overlay" id="grillModal" style="display: none">
+      <div class="modal-card grill-card">
+        <div class="modal-header">
+          <div class="modal-title" id="grill-title-text">🔥 Grill Me</div>
+          <button class="modal-close-btn">×</button>
+        </div>
+        <div class="modal-body grill-body">
+          <div class="grill-chat-log" id="grillChatLog"></div>
+          <div class="grill-input-row">
+            <textarea id="grillInput" rows="2" style="resize: none"></textarea
+            ><button
+              class="btn btn-primary"
+              id="btn-grill-send"
+              style="height: auto; align-self: stretch"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-success" id="btn-grill-apply"></button
+          ><button class="btn btn-secondary" id="btn-grill-close"></button>
+        </div>
+      </div>
+    </div>
+    <button
+      id="btn-grill-debug-copy"
+      type="button"
+      onclick="window.ganfpuGrillDebug && window.ganfpuGrillDebug.copy()"
+      title="Copy GANFPU controller diagnostics"
+      style="
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        z-index: 2147483647;
+        padding: 10px 14px;
+        border: 1px solid #888;
+        border-radius: 8px;
+        background: #fff;
+        color: #111;
+        font: 600 13px sans-serif;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+      "
+    >
+      Copy Debug Log
+    </button>
     <script src="app.js"></script>
     <script src="normal-mode.js"></script>
     <script src="free-api.js"></script>

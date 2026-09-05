@@ -11,25 +11,39 @@
 
 (() => {
   const MODEL = 'onnx-community/ruri-v3-30m-ONNX';
-  const THRESHOLD = 0.90;
+  const THRESHOLD = 0.9;
   const MAX_RETRIES = 2;
   const CACHE_LIMIT = 96;
 
   let extractorPromise = null;
   const cache = new Map();
 
-  function normalize(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
+  function normalize(value) {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
   function requirementNodeKeys(interviewState) {
-    const nodes = Array.isArray(interviewState?.requirementNodes) ? interviewState.requirementNodes : [];
+    const nodes = Array.isArray(interviewState?.requirementNodes)
+      ? interviewState.requirementNodes
+      : [];
     const nodeKeys = nodes.map((node) => normalize(node?.key)).filter(Boolean);
-    const legacyKeys = Array.isArray(interviewState?.blockedRequirementNodes) ? interviewState.blockedRequirementNodes : [];
+    const legacyKeys = Array.isArray(interviewState?.blockedRequirementNodes)
+      ? interviewState.blockedRequirementNodes
+      : [];
     return [...new Set([...nodeKeys, ...legacyKeys.map(normalize).filter(Boolean)])];
   }
 
   function cosine(a, b) {
     if (!a || !b || a.length !== b.length || !a.length) return null;
-    let dot = 0, aa = 0, bb = 0;
-    for (let i = 0; i < a.length; i += 1) { dot += a[i] * b[i]; aa += a[i] * a[i]; bb += b[i] * b[i]; }
+    let dot = 0,
+      aa = 0,
+      bb = 0;
+    for (let i = 0; i < a.length; i += 1) {
+      dot += a[i] * b[i];
+      aa += a[i] * a[i];
+      bb += b[i] * b[i];
+    }
     const denom = Math.sqrt(aa) * Math.sqrt(bb);
     return denom > 0 ? dot / denom : null;
   }
@@ -38,7 +52,8 @@
     if (!extractorPromise) {
       extractorPromise = (async () => {
         try {
-          const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/+esm');
+          const { pipeline } =
+            await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/+esm');
           return await pipeline('feature-extraction', MODEL, { dtype: 'q8' });
         } catch (error) {
           extractorPromise = null;
@@ -73,8 +88,14 @@
     return (messages || [])
       .filter((message) => message.role === 'assistant' && !message.synthetic)
       .map((message) => normalize(message.content))
-      .filter((text) => text && /[?？]|ですか|ますか|でしょうか|どのよう|どちら|何を|何が|どんな|どれ/.test(text))
-      .filter((text) => !/おすすめ|推薦|候補|以下の|検討してみ|最適です|選ぶとよい|\bhttps?:\/\//i.test(text));
+      .filter(
+        (text) =>
+          text && /[?？]|ですか|ますか|でしょうか|どのよう|どちら|何を|何が|どんな|どれ/.test(text)
+      )
+      .filter(
+        (text) =>
+          !/おすすめ|推薦|候補|以下の|検討してみ|最適です|選ぶとよい|\bhttps?:\/\//i.test(text)
+      );
   }
 
   async function maxSimilarity(query, candidates) {
@@ -93,11 +114,22 @@
 
   function candidateSemanticText(result) {
     const candidate = result?.candidate || {};
-    return normalize([result?.question, candidate.field_id, candidate.dimension_anchor, candidate.missing_requirement].filter(Boolean).join(' '));
+    return normalize(
+      [
+        result?.question,
+        candidate.field_id,
+        candidate.dimension_anchor,
+        candidate.missing_requirement,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    );
   }
 
   function candidateNodeKey(engine, result) {
-    return typeof engine?.requirementNodeKey === 'function' ? normalize(engine.requirementNodeKey(result?.candidate)) : '';
+    return typeof engine?.requirementNodeKey === 'function'
+      ? normalize(engine.requirementNodeKey(result?.candidate))
+      : '';
   }
 
   function nodeKeyExists(interviewState, key) {
@@ -110,7 +142,9 @@
     if (!engine?.nextQuestion || engine.nextQuestion.__semanticGuardInstalled) return;
     const original = engine.nextQuestion;
     const guarded = async function guardedNextQuestion(messages, interviewState = {}) {
-      const hasAuthoritativeNodes = Array.isArray(interviewState.requirementNodes) && interviewState.requirementNodes.length > 0;
+      const hasAuthoritativeNodes =
+        Array.isArray(interviewState.requirementNodes) &&
+        interviewState.requirementNodes.length > 0;
       const blockedRequirementNodes = requirementNodeKeys(interviewState);
       const blockedSemanticQuestions = [
         ...(interviewState.blockedSemanticQuestions || []),
@@ -125,7 +159,8 @@
         if (result?.status && result.status !== 'question') return result;
 
         const nodeKey = candidateNodeKey(engine, result);
-        if (hasAuthoritativeNodes && nodeKey && !nodeKeyExists(interviewState, nodeKey)) return result;
+        if (hasAuthoritativeNodes && nodeKey && !nodeKeyExists(interviewState, nodeKey))
+          return result;
         if (!nodeKey && hasAuthoritativeNodes) return result;
         if (!blockedSemanticQuestions.length) return result;
 
@@ -136,7 +171,8 @@
 
         // A same-node semantic duplicate is safe to reject. Different-node
         // candidates were returned above and therefore remain independent.
-        if (nodeKey && !blockedRequirementNodes.some((value) => normalize(value) === nodeKey)) return result;
+        if (nodeKey && !blockedRequirementNodes.some((value) => normalize(value) === nodeKey))
+          return result;
         console.info('[GANFPU] Semantic duplicate question rejected:', {
           score: Number(similarity.score.toFixed(3)),
           matchedQuestion: similarity.match,
@@ -144,13 +180,25 @@
           nodeKey,
         });
       }
-      return { status:'blocked', reason:'semantic_duplicate_question', question:'', candidate:null, evidence:[] };
+      return {
+        status: 'blocked',
+        reason: 'semantic_duplicate_question',
+        question: '',
+        candidate: null,
+        evidence: [],
+      };
     };
     guarded.__semanticGuardInstalled = true;
     engine.nextQuestion = guarded;
   }
 
-  window.ganfpuSemanticSimilarity = { embed, cosine, maxSimilarity, threshold: THRESHOLD, model: MODEL };
+  window.ganfpuSemanticSimilarity = {
+    embed,
+    cosine,
+    maxSimilarity,
+    threshold: THRESHOLD,
+    model: MODEL,
+  };
   installGrillGuard();
   if (!window.ganfpuGrillEngine?.nextQuestion) setTimeout(installGrillGuard, 0);
 })();

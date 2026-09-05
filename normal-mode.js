@@ -92,7 +92,8 @@
       resultTitle: 'Prompt generado',
       resultCopy: 'Copiar',
       resultCopied: 'Copiado',
-      guide: '① Escribe lo que quieres → ② Responde las preguntas de la IA → ③ Copia el prompt final',
+      guide:
+        '① Escribe lo que quieres → ② Responde las preguntas de la IA → ③ Copia el prompt final',
       settings: 'Configuración LLM',
       settingsOpen: 'Cerrar configuración LLM',
     },
@@ -221,7 +222,10 @@
     if (input) input.placeholder = c.placeholder;
     set('normal-start', c.start);
     set('normal-guide', c.guide);
-    set('normal-settings-button', document.getElementById('normal-settings')?.hidden !== false ? c.settings : c.settingsOpen);
+    set(
+      'normal-settings-button',
+      document.getElementById('normal-settings')?.hidden !== false ? c.settings : c.settingsOpen
+    );
     set('normal-power', normalMode ? c.power : c.active);
     set('normal-power-desc', c.powerDesc);
     set('normal-result-title', c.resultTitle);

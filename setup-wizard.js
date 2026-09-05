@@ -166,7 +166,9 @@
     if (!title || !text || !link || !key || !saveWrap || !note) return;
 
     const isOpenRouter = selectedProvider === 'openrouter';
-    title.textContent = isOpenRouter ? 'OpenRouterのAPIキーを用意します' : 'GroqのAPIキーを用意します';
+    title.textContent = isOpenRouter
+      ? 'OpenRouterのAPIキーを用意します'
+      : 'GroqのAPIキーを用意します';
     text.textContent = isOpenRouter
       ? 'OpenRouterでAPIキーを作成してコピーし、下の欄に貼り付けてください。GANFPUはOpenRouterの無料モデルを使用します。'
       : 'GroqでAPIキーを作成してコピーし、下の欄に貼り付けてください。';
@@ -186,11 +188,13 @@
     const backButton = el('setup-wizard-back');
     const nextButton = el('setup-wizard-next');
     const laterButton = el('setup-wizard-later');
-    if (backButton) backButton.style.display = currentStep === 'provider' || currentStep === 'done' ? 'none' : '';
+    if (backButton)
+      backButton.style.display = currentStep === 'provider' || currentStep === 'done' ? 'none' : '';
     if (laterButton) laterButton.style.display = currentStep === 'done' ? 'none' : '';
     if (nextButton) {
       nextButton.style.display = currentStep === 'provider' || currentStep === 'done' ? '' : '';
-      nextButton.textContent = currentStep === 'test' ? '接続テスト' : currentStep === 'done' ? '始める' : '次へ';
+      nextButton.textContent =
+        currentStep === 'test' ? '接続テスト' : currentStep === 'done' ? '始める' : '次へ';
     }
     if (currentStep === 'provider') nextButton.style.display = 'none';
     if (currentStep === 'key' || currentStep === 'lmstudio') nextButton.style.display = '';
@@ -325,7 +329,8 @@
     const modal = el('setupWizard');
     if (!modal) return;
     selectedProvider = localStorage.getItem('ganfpu_provider') || 'openrouter';
-    if (!['openrouter', 'groq', 'lmstudio'].includes(selectedProvider)) selectedProvider = 'openrouter';
+    if (!['openrouter', 'groq', 'lmstudio'].includes(selectedProvider))
+      selectedProvider = 'openrouter';
     currentStep = 'provider';
     renderStep();
     modal.style.display = 'flex';

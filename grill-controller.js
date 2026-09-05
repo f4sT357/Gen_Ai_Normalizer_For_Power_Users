@@ -230,6 +230,10 @@
     return true;
   }
 
+  // Explicit bridges used by Normal Mode. The controller remains the single
+  // owner of interview state; these aliases avoid reaching into its internals.
+  window.ganfpuStartGrill = start;
+  window.ganfpuApplyGrillResult = apply;
   window.startGrillMe = start;
   window.closeGrillMe = closeGrillMe;
   window.applyGrillMeResult = apply;

@@ -61,11 +61,7 @@
 
   function completionAction(model) {
     const taskType = text(model?.intent?.task_type) || 'unknown';
-    return {
-      type: 'complete',
-      id: 'complete',
-      result_type: taskType === 'transformation' ? 'prompt_specification' : taskType
-    };
+    return { type: 'complete', id: 'complete', result_type: taskType === 'transformation' ? 'prompt_specification' : taskType };
   }
 
   function knowledgeIsSufficient(model) {
@@ -78,20 +74,12 @@
     const hasUserMessage = Array.isArray(messages) && messages.some(
       (message) => message?.role === 'user' && !message?.synthetic && text(message.content)
     );
-
-    if (!hasUserMessage) {
-      return {
-        action: null,
-        model: normalizeModel(model, model?.intent || null),
-        discovery: normalizeDiscovery(discovery)
-      };
-    }
+    if (!hasUserMessage) return { action: null, model: normalizeModel(model, model?.intent || null), discovery: normalizeDiscovery(discovery) };
 
     const intentApi = window.ganfpuIntentAnalyzer;
     const extractor = window.ganfpuRequirementExtractor;
     const discoveryApi = window.ganfpuRequirementDiscovery;
     const knowledgeApi = window.ganfpuKnowledgeDiscovery;
-
     let currentModel = normalizeModel(model, model?.intent || null);
     let currentDiscovery = normalizeDiscovery(discovery);
 
@@ -100,16 +88,11 @@
     }
 
     if (extractor?.extract) {
-      currentModel = mergeRequirements(
-        currentModel,
-        await extractor.extract(messages, currentModel)
-      );
+      currentModel = mergeRequirements(currentModel, await extractor.extract(messages, currentModel));
     }
 
     const taskType = text(currentModel?.intent?.task_type);
 
-    // Knowledge is evidence, not a completion signal. Discover it before
-    // requirement discovery, but never terminate merely because evidence exists.
     if (
       (taskType === 'knowledge' || taskType === 'research' || taskType === 'recommendation') &&
       knowledgeApi?.discover &&
@@ -125,41 +108,42 @@
     }
 
     if (taskType === 'unknown') {
-      const action = {
-        type: 'ask_user',
-        id: nextActionId(currentDiscovery),
-        question: 'この依頼で最終的に何を実現したいですか?',
-        target: { field_id: 'f-task', dimension: 'goal' }
-      };
+      const action = { type: 'ask_user', id: nextActionId(currentDiscovery), question: 'この依頼で最終的に何を実現したいですか?', target: { field_id: 'f-task', dimension: 'goal' } };
       return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
     }
 
     if (discoveryApi?.nextAction) {
-      const action = await discoveryApi.nextAction({
-        messages,
-        model: currentModel,
-        discovery: currentDiscovery
-      });
-
-      if (action?.type === 'ask_user') {
-        return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
-      }
-
+      const action = await discoveryApi.nextAction({ messages, model: currentModel, discovery: currentDiscovery });
+      if (action?.type === 'ask_user') return { action, model: currentModel, discovery: recordAsked(currentDiscovery, action) };
       if (action?.type === 'complete') {
         currentDiscovery.completed = true;
         return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
       }
+
+      // A failed/blocked discovery step is not equivalent to completion.
+      // Keep the interview open so a transient provider failure cannot cause
+      // an incomplete Requirement Model to be applied as if it were complete.
+      return {
+        action: null,
+        status: 'blocked',
+        error: 'requirement_discovery_unavailable',
+        model: currentModel,
+        discovery: currentDiscovery
+      };
     }
 
-    // A pure knowledge request may complete once evidence has actually been
-    // gathered and Requirement Discovery has no additional user requirement.
     if (taskType === 'knowledge' && knowledgeIsSufficient(currentModel)) {
       currentDiscovery.completed = true;
       return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
     }
 
-    currentDiscovery.completed = true;
-    return { action: completionAction(currentModel), model: currentModel, discovery: currentDiscovery };
+    return {
+      action: null,
+      status: 'blocked',
+      error: 'requirement_discovery_unavailable',
+      model: currentModel,
+      discovery: currentDiscovery
+    };
   }
 
   window.ganfpuCore = Object.freeze({ step, normalizeDiscovery, normalizeModel, knowledgeIsSufficient });

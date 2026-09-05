@@ -146,7 +146,11 @@
     }
 
     if (!discoveryApi?.nextAction) return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };
-    const next = await discoveryApi.nextAction(messages, currentModel, currentDiscovery);
+    const next = await discoveryApi.nextAction({
+      model: currentModel,
+      discovery: currentDiscovery,
+      currentAction,
+    });
     if (!next) return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };
     if (next.type === 'complete') {
       currentDiscovery.completed = true;

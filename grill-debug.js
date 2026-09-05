@@ -1,7 +1,10 @@
 (() => {
   'use strict';
-  const LOG_VERSION = 4;
+  const LOG_VERSION = 5;
   let llmCalls = [];
+  let networkCalls = [];
+  let coreSteps = [];
+  let activeLLMCall = null;
 
   function clone(value) {
     try {
@@ -9,6 +12,15 @@
     } catch (e) {
       return String(value == null ? '' : value);
     }
+  }
+
+  function elapsed(start) {
+    return Math.round(performance.now() - start);
+  }
+
+  function pushLimited(list, value, limit = 50) {
+    list.push(value);
+    if (list.length > limit) list.splice(0, list.length - limit);
   }
 
   function installLLMProbe() {
@@ -24,13 +36,59 @@
         response: null,
         error: null,
       };
-      llmCalls.push(call);
-      if (llmCalls.length > 20) llmCalls = llmCalls.slice(-20);
+      pushLimited(llmCalls, call, 20);
+      const callIndex = llmCalls.length - 1;
+      const started = performance.now();
+      const previous = activeLLMCall;
+      activeLLMCall = callIndex;
       try {
         const result = await original(messages, temperature);
         call.response = String(result == null ? '' : result);
+        call.elapsed_ms = elapsed(started);
         return result;
       } catch (error) {
+        call.elapsed_ms = elapsed(started);
+        call.error = {
+          name: error?.name || 'Error',
+          message: String(error?.message || error),
+          stack: String(error?.stack || ''),
+        };
+        throw error;
+      } finally {
+        activeLLMCall = previous;
+      }
+    };
+    wrapped.__ganfpuDebugWrapped = true;
+    llm.request = wrapped;
+    return true;
+  }
+
+  function installFetchProbe() {
+    if (window.fetch.__ganfpuDebugWrapped) return true;
+    const original = window.fetch.bind(window);
+    const wrapped = async function (input, init) {
+      const started = performance.now();
+      const url = typeof input === 'string' ? input : String(input?.url || '');
+      const method = String(init?.method || input?.method || 'GET').toUpperCase();
+      const call = {
+        timestamp: new Date().toISOString(),
+        method,
+        url,
+        llm_call_index: activeLLMCall,
+        status: null,
+        ok: null,
+        elapsed_ms: null,
+        error: null,
+      };
+      pushLimited(networkCalls, call);
+      try {
+        const response = await original(input, init);
+        call.status = response.status;
+        call.ok = response.ok;
+        call.elapsed_ms = elapsed(started);
+        return response;
+      } catch (error) {
+        call.elapsed_ms = elapsed(started);
         call.error = {
           name: error?.name || 'Error',
           message: String(error?.message || error),
@@ -40,7 +98,56 @@
       }
     };
     wrapped.__ganfpuDebugWrapped = true;
-    llm.request = wrapped;
+    window.fetch = wrapped;
+    return true;
+  }
+
+  function installCoreProbe() {
+    const core = window.ganfpuCore;
+    if (!core || typeof core.step !== 'function') return false;
+    if (core.step.__ganfpuDebugWrapped) return true;
+    const original = core.step;
+    const wrapped = async function (args) {
+      const started = performance.now();
+      const before = {
+        model: clone(args?.model),
+        discovery: clone(args?.discovery),
+        currentAction: clone(args?.currentAction),
+        message_count: Array.isArray(args?.messages) ? args.messages.length : 0,
+      };
+      const step = {
+        timestamp: new Date().toISOString(),
+        before,
+        result: null,
+        after: null,
+        elapsed_ms: null,
+        error: null,
+      };
+      pushLimited(coreSteps, step);
+      try {
+        const result = await original(args);
+        step.elapsed_ms = elapsed(started);
+        step.result = clone({
+          status: result?.status,
+          action: result?.action,
+          model: result?.model,
+          discovery: result?.discovery,
+        });
+        step.after = clone(window.ganfpuGrillController?.getState?.() || null);
+        return result;
+      } catch (error) {
+        step.elapsed_ms = elapsed(started);
+        step.error = {
+          name: error?.name || 'Error',
+          message: String(error?.message || error),
+          stack: String(error?.stack || ''),
+        };
+        step.after = clone(window.ganfpuGrillController?.getState?.() || null);
+        throw error;
+      }
+    };
+    wrapped.__ganfpuDebugWrapped = true;
+    core.step = wrapped;
     return true;
   }
 
@@ -59,6 +166,8 @@
           }
         : null,
       llm_calls: clone(llmCalls),
+      network_calls: clone(networkCalls),
+      core_steps: clone(coreSteps),
       controller_state: clone(window.ganfpuGrillController?.getState?.() || null),
       visible_chat: Array.from(document.querySelectorAll('#grillChatLog > *'))
         .map((node) => String(node.textContent || '').trim())
@@ -123,6 +232,8 @@
   function init() {
     installButton();
     installLLMProbe();
+    installFetchProbe();
+    installCoreProbe();
   }
 
   window.ganfpuGrillDebug = { getLog: currentLog, copy: copyDebugLog };

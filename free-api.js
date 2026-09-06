@@ -275,22 +275,112 @@
     return true;
   }
 
+  function traceLLMPhase(phase, extra = {}) {
+    try {
+      const trace = window.ganfpuLLMTrace || (window.ganfpuLLMTrace = []);
+      trace.push({
+        timestamp: new Date().toISOString(),
+        call_index:
+          typeof window.ganfpuActiveLLMCall === 'number' ? window.ganfpuActiveLLMCall : null,
+        phase,
+        ...extra,
+      });
+      if (trace.length > 100) trace.splice(0, trace.length - 100);
+    } catch (_) {}
+  }
+
   async function request(messages, temperature = 0.7) {
     const cfg = getConfig();
-    const res = await fetch(`${cfg.endpoint}/chat/completions`, {
-      method: 'POST',
-      headers: cfg.headers,
-      body: JSON.stringify({ model: cfg.model, messages, temperature }),
+    traceLLMPhase('request_start', {
+      provider,
+      model: cfg.model,
+      endpoint: cfg.endpoint,
     });
+    const fetchStarted = performance.now();
+    traceLLMPhase('fetch_start');
+    let res;
+    try {
+      res = await fetch(`${cfg.endpoint}/chat/completions`, {
+        method: 'POST',
+        headers: cfg.headers,
+        body: JSON.stringify({ model: cfg.model, messages, temperature }),
+      });
+      traceLLMPhase('fetch_resolved', {
+        elapsed_ms: Math.round(performance.now() - fetchStarted),
+        status: res.status,
+        ok: res.ok,
+      });
+    } catch (error) {
+      traceLLMPhase('fetch_error', {
+        elapsed_ms: Math.round(performance.now() - fetchStarted),
+        error: {
+          name: error?.name || 'Error',
+          message: String(error?.message || error),
+        },
+      });
+      throw error;
+    }
     if (!res.ok) {
+      traceLLMPhase('error_response_start');
       let detail = '';
       try {
-        detail = (await res.json()).error?.message || '';
+        const errorTextStarted = performance.now();
+        const errorText = await res.text();
+        traceLLMPhase('error_response_body_received', {
+          elapsed_ms: Math.round(performance.now() - errorTextStarted),
+          bytes: errorText.length,
+        });
+        try {
+          detail = JSON.parse(errorText).error?.message || '';
+        } catch (_) {}
       } catch (_) {}
       throw new Error(`API request failed (${res.status})${detail ? ': ' + detail : ''}`);
     }
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || '';
+
+    traceLLMPhase('response_body_start');
+    const bodyStarted = performance.now();
+    let bodyText;
+    try {
+      bodyText = await res.text();
+      traceLLMPhase('response_body_received', {
+        elapsed_ms: Math.round(performance.now() - bodyStarted),
+        bytes: bodyText.length,
+      });
+    } catch (error) {
+      traceLLMPhase('response_body_error', {
+        elapsed_ms: Math.round(performance.now() - bodyStarted),
+        error: {
+          name: error?.name || 'Error',
+          message: String(error?.message || error),
+        },
+      });
+      throw error;
+    }
+
+    traceLLMPhase('json_parse_start');
+    const jsonStarted = performance.now();
+    let data;
+    try {
+      data = JSON.parse(bodyText);
+      traceLLMPhase('json_parse_complete', {
+        elapsed_ms: Math.round(performance.now() - jsonStarted),
+      });
+    } catch (error) {
+      traceLLMPhase('json_parse_error', {
+        elapsed_ms: Math.round(performance.now() - jsonStarted),
+        error: {
+          name: error?.name || 'Error',
+          message: String(error?.message || error),
+        },
+      });
+      throw error;
+    }
+
+    const content = data.choices?.[0]?.message?.content || '';
+    traceLLMPhase('request_complete', {
+      content_bytes: String(content).length,
+    });
+    return content;
   }
 
   function exposeLLMBridge() {

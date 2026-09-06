@@ -75,12 +75,10 @@
   async function resolveIntent(messages, currentModel, intentApi) {
     if (currentModel.intent && typeof currentModel.intent === 'object') return currentModel.intent;
     if (!intentApi) return null;
-
     if (typeof intentApi.heuristicIntent === 'function') {
       const heuristic = intentApi.heuristicIntent(messages);
       if (text(heuristic?.task_type) !== 'unknown') return heuristic;
     }
-
     if (typeof intentApi.analyze === 'function') return intentApi.analyze(messages);
     return null;
   }
@@ -90,11 +88,7 @@
     const latest = latestUserMessage(messages);
     if (!latest) return model;
     if (currentAction?.type === 'ask_user' && typeof extractor.extractDelta === 'function') {
-      const next = await extractor.extractDelta({
-        userMessage: latest,
-        currentAction,
-        model,
-      });
+      const next = await extractor.extractDelta({ userMessage: latest, currentAction, model });
       if (Array.isArray(next)) {
         let updated = model;
         for (const requirement of next) updated = addRequirement(updated, requirement);
@@ -139,19 +133,18 @@
     const seedResult = initialTurn ? seedInitialTask(currentModel, messages) : { model: currentModel, seeded: false };
     currentModel = seedResult.model;
 
-    if (!seedResult.seeded || hasInitialRequirementCue(latestUserMessage(messages))) {
-      currentModel = await extractRequirements(messages, currentModel, currentAction, extractor);
-    }
+    const shouldExtract = !seedResult.seeded || hasInitialRequirementCue(latestUserMessage(messages));
+    if (shouldExtract) currentModel = await extractRequirements(messages, currentModel, currentAction, extractor);
 
-    if (
-      (taskType === 'knowledge' || taskType === 'research' || taskType === 'recommendation') &&
+    const needsKnowledge = taskType === 'knowledge' || taskType === 'research' || taskType === 'recommendation';
+    const shouldDiscoverKnowledge = needsKnowledge &&
       knowledgeApi?.discover &&
-      !knowledgeIsSufficient(currentModel)
-    ) {
+      !knowledgeIsSufficient(currentModel) &&
+      !initialTurn;
+
+    if (shouldDiscoverKnowledge) {
       const discovered = await knowledgeApi.discover(messages, currentModel.intent);
-      if (discovered) {
-        currentModel.knowledge = [...(currentModel.knowledge || []), discovered];
-      }
+      if (discovered) currentModel.knowledge = [...(currentModel.knowledge || []), discovered];
     }
 
     if (taskType === 'knowledge' && knowledgeIsSufficient(currentModel)) {

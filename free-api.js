@@ -7,6 +7,7 @@
 
 (() => {
   const KEY_STORAGE = 'ganfpu_free_api';
+  const RESPONSE_BODY_TIMEOUT_MS = 15000;
   const PROVIDERS = {
     lmstudio: {
       label: 'LM Studio',
@@ -26,7 +27,6 @@
   };
 
   let provider = localStorage.getItem('ganfpu_provider') || 'lmstudio';
-  // API key is intentionally memory-only unless the user explicitly opts in.
   let apiKey = localStorage.getItem(KEY_STORAGE) || '';
   let model = localStorage.getItem('ganfpu_model') || '';
   let saveKey = !!localStorage.getItem(KEY_STORAGE);
@@ -254,7 +254,11 @@
     return {
       endpoint: currentProvider().endpoint,
       model: model || currentProvider().model,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
     };
   }
 
@@ -298,17 +302,23 @@
     });
     const fetchStarted = performance.now();
     traceLLMPhase('fetch_start');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), RESPONSE_BODY_TIMEOUT_MS);
     let res;
     try {
       res = await fetch(`${cfg.endpoint}/chat/completions`, {
         method: 'POST',
         headers: cfg.headers,
         body: JSON.stringify({ model: cfg.model, messages, temperature }),
+        signal: controller.signal,
       });
       traceLLMPhase('fetch_resolved', {
         elapsed_ms: Math.round(performance.now() - fetchStarted),
         status: res.status,
         ok: res.ok,
+        content_type: res.headers.get('content-type') || '',
+        content_length: res.headers.get('content-length') || '',
+        transfer_encoding: res.headers.get('transfer-encoding') || '',
       });
     } catch (error) {
       traceLLMPhase('fetch_error', {
@@ -319,6 +329,8 @@
         },
       });
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
     if (!res.ok) {
       traceLLMPhase('error_response_start');
@@ -340,8 +352,21 @@
     traceLLMPhase('response_body_start');
     const bodyStarted = performance.now();
     let bodyText;
+    const bodyController = new AbortController();
+    const bodyTimeoutId = setTimeout(() => bodyController.abort(), RESPONSE_BODY_TIMEOUT_MS);
     try {
-      bodyText = await res.text();
+      // Response body consumption is independently time-bounded because fetch()
+      // can resolve with HTTP 200 while the browser still waits for the body.
+      bodyText = await Promise.race([
+        res.text(),
+        new Promise((_, reject) => {
+          bodyController.signal.addEventListener('abort', () => {
+            const error = new Error(`Response body timeout after ${RESPONSE_BODY_TIMEOUT_MS}ms`);
+            error.name = 'TimeoutError';
+            reject(error);
+          }, { once: true });
+        }),
+      ]);
       traceLLMPhase('response_body_received', {
         elapsed_ms: Math.round(performance.now() - bodyStarted),
         bytes: bodyText.length,
@@ -349,12 +374,15 @@
     } catch (error) {
       traceLLMPhase('response_body_error', {
         elapsed_ms: Math.round(performance.now() - bodyStarted),
+        timeout_ms: RESPONSE_BODY_TIMEOUT_MS,
         error: {
           name: error?.name || 'Error',
           message: String(error?.message || error),
         },
       });
       throw error;
+    } finally {
+      clearTimeout(bodyTimeoutId);
     }
 
     traceLLMPhase('json_parse_start');
@@ -396,7 +424,6 @@
     injectStyles();
     createUI();
     exposeLLMBridge();
-    // Grill Me behavior is owned by grill-controller.js.
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

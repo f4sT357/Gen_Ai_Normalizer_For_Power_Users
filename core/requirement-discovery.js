@@ -61,7 +61,6 @@
     const sample = explicit || conversation;
     if (/\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Han}/u.test(sample)) return 'ja';
     if (/\p{Script=Hangul}/u.test(sample)) return 'ko';
-    if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(sample)) return 'ja';
     return 'en';
   }
 
@@ -208,8 +207,13 @@
   }
 
   async function nextAction({ model = {}, discovery = {}, currentAction = null, messages = [], latestUserMessage = null } = {}) {
+    // Prefer deterministic, conservative questions when they cover a known common requirement.
+    // This avoids spending an LLM call merely to select a generic first/second question.
+    const deterministic = fallbackAction(model, discovery, messages, latestUserMessage);
+    if (deterministic) return deterministic;
+
     const adapter = llm();
-    if (!adapter?.request) return fallbackAction(model, discovery, messages, latestUserMessage);
+    if (!adapter?.request) return null;
 
     try {
       const raw = await adapter.request([
@@ -240,9 +244,9 @@
         };
       }
 
-      return fallbackAction(model, discovery, messages, latestUserMessage);
+      return null;
     } catch (_) {
-      return fallbackAction(model, discovery, messages, latestUserMessage);
+      return null;
     }
   }
 

@@ -49,9 +49,10 @@
   function seedInitialTask(model, messages) {
     const first = authoritativeUserMessages(messages)[0];
     if (!first || text(model?.intent?.task_type) === 'unknown') return { model, seeded: false };
-    if (typeof requirementApi()?.addRequirement !== 'function') return { model, seeded: false };
+    const api = requirementApi();
+    if (typeof api?.addRequirement !== 'function') return { model, seeded: false };
     const value = text(first.content);
-    const next = addRequirement(model, {
+    const result = api.addRequirement(model, {
       field_id: 'f-task',
       dimension: 'task',
       dimension_anchor: value,
@@ -59,7 +60,8 @@
       status: 'confirmed',
       source: { type: 'user', message_id: first.id || null, quote: value },
     });
-    const seeded = next !== model && Array.isArray(next?.requirements) && next.requirements.length > 0;
+    const next = result?.model || model;
+    const seeded = result?.added === true;
     return { model: next, seeded };
   }
 

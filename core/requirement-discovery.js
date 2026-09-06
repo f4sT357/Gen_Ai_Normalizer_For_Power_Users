@@ -51,9 +51,23 @@
     return `action_${String(count + 1).padStart(2, '0')}`;
   }
 
-  function fallbackAction(model, discovery) {
+  function conversationLanguage(messages, latestUserMessage) {
+    const explicit = text(latestUserMessage?.content);
+    const conversation = (Array.isArray(messages) ? messages : [])
+      .filter((message) => message?.role === 'user' || message?.role === 'assistant')
+      .map((message) => text(message.content))
+      .filter(Boolean)
+      .join(' ');
+    const sample = explicit || conversation;
+    if (/\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Han}/u.test(sample)) return 'ja';
+    if (/\p{Script=Hangul}/u.test(sample)) return 'ko';
+    if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(sample)) return 'ja';
+    return 'en';
+  }
+
+  function fallbackCandidates(model, language) {
     const taskType = text(model?.intent?.task_type);
-    const candidates = taskType === 'research'
+    const japanese = taskType === 'research'
       ? [
           { field_id: 'f-constraint', dimension: 'priority', question: '調査で特に重視したい条件や比較基準はありますか？' },
           { field_id: 'f-context', dimension: 'purpose', question: 'この調査結果を主に何に使う予定ですか？' },
@@ -68,7 +82,37 @@
             { field_id: 'f-constraint', dimension: 'priority', question: '特に重視したい条件はありますか？' },
           ];
 
-    for (const candidate of candidates) {
+    if (language === 'ja') return japanese;
+    if (language === 'ko') {
+      return taskType === 'recommendation'
+        ? [
+            { field_id: 'f-context', dimension: 'usage', question: '주요 용도나 사용하는 상황을 알려주세요.' },
+            { field_id: 'f-constraint', dimension: 'priority', question: '선택할 때 특히 중요하게 생각하는 조건이 있나요?' },
+          ]
+        : [
+            { field_id: 'f-context', dimension: 'purpose', question: '이 요청의 용도나 목적을 알려주세요.' },
+            { field_id: 'f-constraint', dimension: 'priority', question: '특히 중요하게 생각하는 조건이 있나요?' },
+          ];
+    }
+    return taskType === 'research'
+      ? [
+          { field_id: 'f-constraint', dimension: 'priority', question: 'Are there any conditions or comparison criteria you especially want to prioritize?' },
+          { field_id: 'f-context', dimension: 'purpose', question: 'What will you mainly use the research results for?' },
+        ]
+      : taskType === 'recommendation'
+        ? [
+            { field_id: 'f-context', dimension: 'usage', question: 'What is the main use case or situation you will use it for?' },
+            { field_id: 'f-constraint', dimension: 'priority', question: 'Are there any conditions you especially want to prioritize?' },
+          ]
+        : [
+            { field_id: 'f-context', dimension: 'purpose', question: 'What is the purpose or use case of this request?' },
+            { field_id: 'f-constraint', dimension: 'priority', question: 'Are there any conditions you especially want to prioritize?' },
+          ];
+  }
+
+  function fallbackAction(model, discovery, messages, latestUserMessage) {
+    const language = conversationLanguage(messages, latestUserMessage);
+    for (const candidate of fallbackCandidates(model, language)) {
       const validation = validateAction({ type: 'ask_user', ...candidate }, model, discovery);
       if (validation.valid) {
         return {
@@ -92,7 +136,6 @@
       return JSON.parse(cleaned);
     } catch (_) {}
 
-    // Some providers may prepend safety/status text. Recover a JSON object if one exists.
     const start = cleaned.indexOf('{');
     if (start < 0) return null;
     let depth = 0;
@@ -166,7 +209,7 @@
 
   async function nextAction({ model = {}, discovery = {}, currentAction = null, messages = [], latestUserMessage = null } = {}) {
     const adapter = llm();
-    if (!adapter?.request) return null;
+    if (!adapter?.request) return fallbackAction(model, discovery, messages, latestUserMessage);
 
     try {
       const raw = await adapter.request([
@@ -197,11 +240,9 @@
         };
       }
 
-      // A malformed provider response should not make the interview unusable.
-      // Fall back to a conservative, generic question without inventing a requirement value.
-      return fallbackAction(model, discovery);
+      return fallbackAction(model, discovery, messages, latestUserMessage);
     } catch (_) {
-      return fallbackAction(model, discovery);
+      return fallbackAction(model, discovery, messages, latestUserMessage);
     }
   }
 

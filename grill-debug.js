@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const LOG_VERSION = 5;
+  const LOG_VERSION = 6;
   let llmCalls = [];
   let networkCalls = [];
   let coreSteps = [];
@@ -40,7 +40,9 @@
       const callIndex = llmCalls.length - 1;
       const started = performance.now();
       const previous = activeLLMCall;
+      const previousGlobal = window.ganfpuActiveLLMCall;
       activeLLMCall = callIndex;
+      window.ganfpuActiveLLMCall = callIndex;
       try {
         const result = await original(messages, temperature);
         call.response = String(result == null ? '' : result);
@@ -56,6 +58,7 @@
         throw error;
       } finally {
         activeLLMCall = previous;
+        window.ganfpuActiveLLMCall = previousGlobal;
       }
     };
     wrapped.__ganfpuDebugWrapped = true;
@@ -166,6 +169,7 @@
           }
         : null,
       llm_calls: clone(llmCalls),
+      llm_phases: clone(window.ganfpuLLMTrace || []),
       network_calls: clone(networkCalls),
       core_steps: clone(coreSteps),
       controller_state: clone(window.ganfpuGrillController?.getState?.() || null),

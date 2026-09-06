@@ -110,6 +110,16 @@
     return next?.model || model;
   }
 
+  async function discoverKnowledgeIfNeeded(messages, currentModel, taskType, knowledgeApi) {
+    const needsKnowledge = taskType === 'knowledge' || taskType === 'research' || taskType === 'recommendation';
+    if (!needsKnowledge || typeof knowledgeApi?.discover !== 'function' || knowledgeIsSufficient(currentModel)) {
+      return currentModel;
+    }
+    const discovered = await knowledgeApi.discover(messages, currentModel.intent);
+    if (discovered) currentModel.knowledge = [...(currentModel.knowledge || []), discovered];
+    return currentModel;
+  }
+
   async function step({ messages, model, discovery, currentAction }) {
     let currentModel = model || requirementApi()?.createModel?.(null) || { version: 1, intent: null, requirements: [], knowledge: [], pending: [] };
     let currentDiscovery = discovery || { asked: [], completed: false };
@@ -138,17 +148,6 @@
     const shouldExtract = !seedResult.seeded || hasInitialRequirementCue(latestUserMessage(messages));
     if (shouldExtract) currentModel = await extractRequirements(messages, currentModel, currentAction, extractor);
 
-    const needsKnowledge = taskType === 'knowledge' || taskType === 'research' || taskType === 'recommendation';
-    const shouldDiscoverKnowledge = needsKnowledge &&
-      knowledgeApi?.discover &&
-      !knowledgeIsSufficient(currentModel) &&
-      !initialTurn;
-
-    if (shouldDiscoverKnowledge) {
-      const discovered = await knowledgeApi.discover(messages, currentModel.intent);
-      if (discovered) currentModel.knowledge = [...(currentModel.knowledge || []), discovered];
-    }
-
     if (taskType === 'knowledge' && knowledgeIsSufficient(currentModel)) {
       currentDiscovery.completed = true;
       return { status: 'ok', model: currentModel, discovery: currentDiscovery, action: completionAction(currentModel) };
@@ -169,6 +168,10 @@
     });
     if (!next) return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };
     if (next.type === 'complete') {
+      currentModel = await discoverKnowledgeIfNeeded(messages, currentModel, taskType, knowledgeApi);
+      if (taskType === 'knowledge' && !knowledgeIsSufficient(currentModel)) {
+        return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };
+      }
       currentDiscovery.completed = true;
       return { status: 'ok', model: currentModel, discovery: currentDiscovery, action: completionAction(currentModel) };
     }

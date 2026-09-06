@@ -179,34 +179,53 @@
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.setAttribute('readonly', '');
-    textarea.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+    textarea.setAttribute('aria-hidden', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    textarea.style.width = '1px';
+    textarea.style.height = '1px';
+    textarea.style.opacity = '0';
     document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
+
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(0, textarea.value.length);
+
     let copied = false;
     try {
       copied = document.execCommand('copy');
-    } catch (e) {}
+    } catch (e) {
+      copied = false;
+    }
+
     document.body.removeChild(textarea);
     return copied;
   }
 
-  function copyDebugLog() {
+  async function copyDebugLog() {
     const text = JSON.stringify(currentLog(), null, 2);
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          if (typeof window.showToast === 'function') window.showToast('Debug log copied.');
-        })
-        .catch(() => {
-          if (!copyText(text) && typeof window.showToast === 'function')
-            window.showToast('Failed to copy debug log.');
-        });
-      return;
+
+    // execCommand must be attempted synchronously while the click still has
+    // a user-gesture context. This is important on iOS Safari.
+    if (copyText(text)) {
+      if (typeof window.showToast === 'function') window.showToast('Debug log copied.');
+      return true;
     }
-    if (!copyText(text) && typeof window.showToast === 'function')
-      window.showToast('Failed to copy debug log.');
+
+    // Clipboard API is the secondary path when the synchronous fallback is
+    // unavailable (for example, in browsers that disable execCommand).
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (typeof window.showToast === 'function') window.showToast('Debug log copied.');
+        return true;
+      } catch (e) {
+        // Fall through to a clear failure state.
+      }
+    }
+
+    if (typeof window.showToast === 'function') window.showToast('Failed to copy debug log.');
+    return false;
   }
 
   function installButton() {

@@ -51,6 +51,83 @@
     return `action_${String(count + 1).padStart(2, '0')}`;
   }
 
+  function fallbackAction(model, discovery) {
+    const taskType = text(model?.intent?.task_type);
+    const candidates = taskType === 'research'
+      ? [
+          { field_id: 'f-constraint', dimension: 'priority', question: '調査で特に重視したい条件や比較基準はありますか？' },
+          { field_id: 'f-context', dimension: 'purpose', question: 'この調査結果を主に何に使う予定ですか？' },
+        ]
+      : taskType === 'recommendation'
+        ? [
+            { field_id: 'f-context', dimension: 'usage', question: '主な用途や使う場面を教えてください。' },
+            { field_id: 'f-constraint', dimension: 'priority', question: '選ぶときに特に重視したい条件はありますか？' },
+          ]
+        : [
+            { field_id: 'f-context', dimension: 'purpose', question: 'この依頼の用途や目的を教えてください。' },
+            { field_id: 'f-constraint', dimension: 'priority', question: '特に重視したい条件はありますか？' },
+          ];
+
+    for (const candidate of candidates) {
+      const validation = validateAction({ type: 'ask_user', ...candidate }, model, discovery);
+      if (validation.valid) {
+        return {
+          type: 'ask_user',
+          id: nextActionId(discovery),
+          question: candidate.question,
+          target: { field_id: candidate.field_id, dimension: candidate.dimension },
+        };
+      }
+    }
+    return null;
+  }
+
+  function parseAction(raw) {
+    const cleaned = text(raw)
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (_) {}
+
+    // Some providers may prepend safety/status text. Recover a JSON object if one exists.
+    const start = cleaned.indexOf('{');
+    if (start < 0) return null;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let i = start; i < cleaned.length; i += 1) {
+      const ch = cleaned[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\' && inString) {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+      if (ch === '{') depth += 1;
+      if (ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          try {
+            return JSON.parse(cleaned.slice(start, i + 1));
+          } catch (_) {
+            return null;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   function buildPrompt(model, discovery, currentAction, messages, latestUserMessage) {
     const latest = text(latestUserMessage?.content);
     const conversation = (Array.isArray(messages) ? messages : [])
@@ -103,26 +180,28 @@
         }
       ], 0.1);
 
-      const action = JSON.parse(
-        text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
-      );
+      const action = parseAction(raw);
 
       if (action?.type === 'complete') return action;
 
       const validation = validateAction(action, model, discovery);
-      if (!validation.valid) return null;
+      if (validation.valid) {
+        return {
+          type: 'ask_user',
+          id: text(action.id) || nextActionId(discovery),
+          question: text(action.question),
+          target: {
+            field_id: text(action.target.field_id),
+            dimension: text(action.target.dimension)
+          }
+        };
+      }
 
-      return {
-        type: 'ask_user',
-        id: text(action.id) || nextActionId(discovery),
-        question: text(action.question),
-        target: {
-          field_id: text(action.target.field_id),
-          dimension: text(action.target.dimension)
-        }
-      };
+      // A malformed provider response should not make the interview unusable.
+      // Fall back to a conservative, generic question without inventing a requirement value.
+      return fallbackAction(model, discovery);
     } catch (_) {
-      return null;
+      return fallbackAction(model, discovery);
     }
   }
 

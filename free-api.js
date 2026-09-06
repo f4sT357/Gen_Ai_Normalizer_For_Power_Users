@@ -26,17 +26,12 @@
   };
 
   let provider = localStorage.getItem('ganfpu_provider') || 'lmstudio';
-  // API key is intentionally memory-only unless the user explicitly opts in.
   let apiKey = localStorage.getItem(KEY_STORAGE) || '';
   let model = localStorage.getItem('ganfpu_model') || '';
   let saveKey = !!localStorage.getItem(KEY_STORAGE);
 
-  function el(id) {
-    return document.getElementById(id);
-  }
-  function currentProvider() {
-    return PROVIDERS[provider] || PROVIDERS.lmstudio;
-  }
+  function el(id) { return document.getElementById(id); }
+  function currentProvider() { return PROVIDERS[provider] || PROVIDERS.lmstudio; }
 
   function injectStyles() {
     if (el('free-api-style')) return;
@@ -97,30 +92,19 @@
     el('free-api-save-key').checked = saveKey;
     el('free-api-provider').addEventListener('change', () => {
       provider = el('free-api-provider').value;
-      if (provider === 'lmstudio') {
-        model = '';
-      } else if (!model || provider !== localStorage.getItem('ganfpu_provider')) {
-        model = PROVIDERS[provider].model;
-      }
+      if (provider === 'lmstudio') model = '';
+      else if (!model || provider !== localStorage.getItem('ganfpu_provider')) model = PROVIDERS[provider].model;
       renderProvider();
     });
     el('free-api-save-key').addEventListener('change', () => {
       saveKey = el('free-api-save-key').checked;
-      if (!saveKey) {
-        localStorage.removeItem(KEY_STORAGE);
-        updateStatus();
-      }
+      if (!saveKey) { localStorage.removeItem(KEY_STORAGE); updateStatus(); }
     });
     el('free-api-save').addEventListener('click', saveSettings);
     el('free-api-clear').addEventListener('click', clearSavedKey);
     el('free-api-models').addEventListener('click', fetchProviderModels);
-    el('free-api-key').addEventListener('input', () => {
-      apiKey = el('free-api-key').value;
-      updateStatus();
-    });
-    el('free-api-model').addEventListener('input', () => {
-      model = el('free-api-model').value.trim();
-    });
+    el('free-api-key').addEventListener('input', () => { apiKey = el('free-api-key').value; updateStatus(); });
+    el('free-api-model').addEventListener('input', () => { model = el('free-api-model').value.trim(); });
     renderProvider();
   }
 
@@ -147,12 +131,11 @@
       if (!model || localStorage.getItem('ganfpu_provider') !== provider) model = p.model;
       modelInput.value = model;
     }
-    el('free-api-note').textContent =
-      provider === 'lmstudio'
-        ? 'Local inference. No API key is sent anywhere.'
-        : saveKey
-          ? 'API requests go directly from your browser to the provider. The API key is saved in this browser because you explicitly enabled it.'
-          : 'API requests go directly from your browser to the provider. The API key stays in memory only and disappears when the page is closed.';
+    el('free-api-note').textContent = provider === 'lmstudio'
+      ? 'Local inference. No API key is sent anywhere.'
+      : saveKey
+        ? 'API requests go directly from your browser to the provider. The API key is saved in this browser because you explicitly enabled it.'
+        : 'API requests go directly from your browser to the provider. The API key stays in memory only and disappears when the page is closed.';
     updateStatus();
   }
 
@@ -163,11 +146,8 @@
     saveKey = !!el('free-api-save-key')?.checked;
     localStorage.setItem('ganfpu_provider', provider);
     localStorage.setItem('ganfpu_model', model);
-    if (saveKey && apiKey) {
-      localStorage.setItem(KEY_STORAGE, apiKey);
-    } else {
-      localStorage.removeItem(KEY_STORAGE);
-    }
+    if (saveKey && apiKey) localStorage.setItem(KEY_STORAGE, apiKey);
+    else localStorage.removeItem(KEY_STORAGE);
     updateStatus(true);
     renderProvider();
     if (typeof window.ganfpuUpdateModelStatus === 'function') window.ganfpuUpdateModelStatus();
@@ -192,26 +172,17 @@
       return;
     }
     const ok = !!apiKey;
-    if (!ok) {
-      s.textContent = 'API key required';
-    } else if (saveKey) {
-      s.textContent = saved ? 'API key saved on this device' : 'API key configured · saved locally';
-    } else {
-      s.textContent = 'API key configured · memory only';
-    }
+    if (!ok) s.textContent = 'API key required';
+    else if (saveKey) s.textContent = saved ? 'API key saved on this device' : 'API key configured · saved locally';
+    else s.textContent = 'API key configured · memory only';
     s.classList.toggle('ready', ok);
   }
 
   async function fetchProviderModels() {
     if (provider !== 'groq') return;
-    if (!apiKey) {
-      showToast('Enter a Groq API key first.');
-      return;
-    }
+    if (!apiKey) { showToast('Enter a Groq API key first.'); return; }
     try {
-      const res = await fetch(PROVIDERS.groq.endpoint + '/models', {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
+      const res = await fetch(PROVIDERS.groq.endpoint + '/models', { headers: { Authorization: `Bearer ${apiKey}` } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const input = el('free-api-model');
@@ -222,19 +193,11 @@
       select = document.createElement('select');
       select.id = 'free-api-model-select';
       select.style.flex = '1';
-      data.data
-        .filter((m) => m.active !== false)
-        .forEach((m) => {
-          const o = document.createElement('option');
-          o.value = m.id;
-          o.textContent = m.id;
-          select.appendChild(o);
-        });
-      select.value = model;
-      select.addEventListener('change', () => {
-        model = select.value;
-        input.value = model;
+      data.data.filter((m) => m.active !== false).forEach((m) => {
+        const o = document.createElement('option'); o.value = m.id; o.textContent = m.id; select.appendChild(o);
       });
+      select.value = model;
+      select.addEventListener('change', () => { model = select.value; input.value = model; });
       input.style.display = 'none';
       wrap.insertBefore(select, wrap.firstChild);
     } catch (e) {
@@ -244,13 +207,11 @@
   }
 
   function getConfig() {
-    if (provider === 'lmstudio') {
-      return {
-        endpoint: (el('lm-endpoint')?.value || 'http://localhost:1234/v1').trim(),
-        model: typeof selectedLMModel !== 'undefined' ? selectedLMModel : '',
-        headers: { 'Content-Type': 'application/json' },
-      };
-    }
+    if (provider === 'lmstudio') return {
+      endpoint: (el('lm-endpoint')?.value || 'http://localhost:1234/v1').trim(),
+      model: typeof selectedLMModel !== 'undefined' ? selectedLMModel : '',
+      headers: { 'Content-Type': 'application/json' },
+    };
     return {
       endpoint: currentProvider().endpoint,
       model: model || currentProvider().model,
@@ -264,14 +225,8 @@
       if (!ready) showToast('Select an LM Studio model first.');
       return ready;
     }
-    if (!apiKey) {
-      showToast('API key is required.');
-      return false;
-    }
-    if (!model) {
-      showToast('Model ID is required.');
-      return false;
-    }
+    if (!apiKey) { showToast('API key is required.'); return false; }
+    if (!model) { showToast('Model ID is required.'); return false; }
     return true;
   }
 
@@ -284,10 +239,11 @@
     });
     if (!res.ok) {
       let detail = '';
-      try {
-        detail = (await res.json()).error?.message || '';
-      } catch (_) {}
-      throw new Error(`API request failed (${res.status})${detail ? ': ' + detail : ''}`);
+      try { detail = (await res.json()).error?.message || ''; } catch (_) {}
+      const error = new Error(`API request failed (${res.status})${detail ? ': ' + detail : ''}`);
+      error.code = res.status === 429 ? 'RATE_LIMITED' : `HTTP_${res.status}`;
+      error.status = res.status;
+      throw error;
     }
     const data = await res.json();
     return data.choices?.[0]?.message?.content || '';
@@ -306,7 +262,6 @@
     injectStyles();
     createUI();
     exposeLLMBridge();
-    // Grill Me behavior is owned by grill-controller.js.
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

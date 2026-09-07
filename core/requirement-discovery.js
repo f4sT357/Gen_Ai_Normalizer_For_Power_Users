@@ -4,7 +4,7 @@
   const modelApi = () => window.ganfpuRequirementModel;
   const llm = () => window.ganfpuLLMAdapter || window.ganfpuLLM;
   const runtimeTrace = {
-    version: '20260907-state-separation-1',
+    version: '20260907-state-separation-2',
     calls: [],
   };
 
@@ -198,17 +198,49 @@
     return null;
   }
 
-  function buildPrompt(model, discovery, currentAction, messages, latestUserMessage) {
-    const latest = text(latestUserMessage?.content);
-    const conversation = (Array.isArray(messages) ? messages : [])
+  function buildDiscoveryContext(model, discovery, currentAction, messages, latestUserMessage) {
+    const language = conversationLanguage(messages, latestUserMessage);
+    const requirements = (Array.isArray(model?.requirements) ? model.requirements : []).map((requirement) => ({
+      field_id: text(requirement?.field_id),
+      dimension: text(requirement?.dimension),
+      status: text(requirement?.status),
+      value: text(requirement?.value),
+    }));
+    const asked = (Array.isArray(discovery?.asked) ? discovery.asked : []).map((item) => ({
+      id: text(item?.id),
+      question: text(item?.question),
+      target: {
+        field_id: text(item?.target?.field_id),
+        dimension: text(item?.target?.dimension),
+      },
+    }));
+    const scratchpad = (Array.isArray(messages) ? messages : [])
       .filter((message) => message?.role === 'user' || message?.role === 'assistant')
       .map((message) => ({ role: message.role, content: text(message.content) }))
-      .filter((message) => message.content);
+      .filter((message) => message.content)
+      .slice(-4);
+
+    return {
+      language,
+      intent: {
+        task_type: text(model?.intent?.task_type),
+        domain: text(model?.intent?.domain),
+        confidence: model?.intent?.confidence ?? null,
+      },
+      requirements,
+      asked,
+      current_action: currentAction || null,
+      scratchpad,
+    };
+  }
+
+  function buildPrompt(model, discovery, currentAction, messages, latestUserMessage) {
+    const context = buildDiscoveryContext(model, discovery, currentAction, messages, latestUserMessage);
 
     return [
       'Choose the single highest-value next user question for requirement discovery.',
       'This component generates an action, not facts, recommendations, or solutions.',
-      'The Requirement Model contains all user-grounded requirements discovered so far. Treat it as the source of truth.',
+      'The Requirement Model is the source of truth. Use only the compact state below.',
       'The discovery log contains questions already asked. Do not repeat them.',
       'Do not invent user preferences, domain facts, technical specifications, or recommendations.',
       'Ask only for a requirement that materially affects the user goal.',
@@ -217,20 +249,11 @@
       'The target dimension must describe the requirement being asked about.',
       'Do not ask about a target whose requirement is already confirmed, unknown, or not_required.',
       'A candidate requirement is not authoritative until explicitly confirmed by the user.',
-      'Generate the question in the language used by the conversation as a whole.',
-      'Use the latest user message as the strongest signal for the current conversation language, but do not switch languages merely because one answer is temporarily written in another language.',
-      'Only change the question language when the user explicitly requests a different language for the questions or conversation.',
-      'Do not infer f-lang from the conversation language. f-lang is a separate task requirement and must be user-grounded.',
-      'The conversation history is provided to judge language continuity and explicit language requests; it is not permission to infer unstated requirements.',
+      'Generate the question in the requested conversation language.',
+      'Use the scratchpad only for conversational continuity; it is not authoritative state.',
       'If no materially useful requirement remains, return {"type":"complete"}.',
       '{"type":"ask_user","id":"action_01","question":"...","target":{"field_id":"f-context","dimension":"usage"}}',
-      `INTENT:\n${JSON.stringify(model?.intent || null)}`,
-      `REQUIREMENTS:\n${JSON.stringify(model?.requirements || [])}`,
-      `KNOWLEDGE:\n${JSON.stringify(model?.knowledge || [])}`,
-      `DISCOVERY:\n${JSON.stringify(discovery || {})}`,
-      `CURRENT ACTION:\n${JSON.stringify(currentAction || null)}`,
-      `CONVERSATION HISTORY:\n${JSON.stringify(conversation)}`,
-      `LATEST USER MESSAGE:\n${JSON.stringify(latest)}`
+      `DISCOVERY CONTEXT:\n${JSON.stringify(context)}`
     ].join('\n');
   }
 

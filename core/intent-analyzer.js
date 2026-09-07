@@ -27,9 +27,6 @@
       return { task_type: 'research', knowledge_needed: true, confidence: 0.72 };
     }
 
-    // "選び方を教えて" asks for decision criteria, not a recommendation.
-    // Keep it in Knowledge so Knowledge Discovery can supply the external axes
-    // before Requirement Discovery asks for the user's own criteria.
     if (/(?:選び方|選ぶ基準|選定基準|選定方法|選ぶ方法).*(?:教えて|知りたい|説明|解説)/i.test(input)) {
       return { task_type: 'knowledge', knowledge_needed: true, confidence: 0.84 };
     }
@@ -69,6 +66,10 @@
     };
   }
 
+  function rethrowRateLimit(error) {
+    if (error?.code === 'RATE_LIMITED' || error?.status === 429) throw error;
+  }
+
   async function analyze(messages) {
     const users = authoritativeUserMessages(messages);
     if (!users.length) return { task_type: 'unknown', knowledge_needed: false, confidence: 0 };
@@ -100,7 +101,8 @@
         JSON.parse(text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')),
         messages
       );
-    } catch (_) {
+    } catch (error) {
+      rethrowRateLimit(error);
       return heuristic;
     }
   }

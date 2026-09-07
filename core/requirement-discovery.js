@@ -125,7 +125,12 @@
       selected: null,
     };
     for (const candidate of candidates) {
-      const validation = validateAction({ type: 'ask_user', ...candidate }, model, discovery);
+      const action = {
+        type: 'ask_user',
+        question: candidate.question,
+        target: { field_id: candidate.field_id, dimension: candidate.dimension },
+      };
+      const validation = validateAction(action, model, discovery);
       attempt.validations.push({
         field_id: candidate.field_id,
         dimension: candidate.dimension,
@@ -134,10 +139,8 @@
       });
       if (validation.valid) {
         const selected = {
-          type: 'ask_user',
+          ...action,
           id: nextActionId(discovery),
-          question: candidate.question,
-          target: { field_id: candidate.field_id, dimension: candidate.dimension },
         };
         attempt.selected = selected;
         runtimeTrace.calls.push(attempt);

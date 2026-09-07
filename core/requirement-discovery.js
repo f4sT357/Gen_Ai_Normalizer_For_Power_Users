@@ -206,9 +206,11 @@
     ].join('\n');
   }
 
+  function rethrowRateLimit(error) {
+    if (error?.code === 'RATE_LIMITED' || error?.status === 429) throw error;
+  }
+
   async function nextAction({ model = {}, discovery = {}, currentAction = null, messages = [], latestUserMessage = null } = {}) {
-    // Prefer deterministic, conservative questions when they cover a known common requirement.
-    // This avoids spending an LLM call merely to select a generic first/second question.
     const deterministic = fallbackAction(model, discovery, messages, latestUserMessage);
     if (deterministic) return deterministic;
 
@@ -245,7 +247,8 @@
       }
 
       return null;
-    } catch (_) {
+    } catch (error) {
+      rethrowRateLimit(error);
       return null;
     }
   }

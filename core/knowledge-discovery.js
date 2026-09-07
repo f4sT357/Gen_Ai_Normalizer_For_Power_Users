@@ -3,7 +3,11 @@
   const llm = () => window.ganfpuLLMAdapter || window.ganfpuLLM;
   function text(value) { return String(value == null ? '' : value).replace(/\s+/g, ' ').trim(); }
   function users(messages) { return (Array.isArray(messages) ? messages : []).filter((message) => message?.role === 'user' && !message?.synthetic).map((message) => text(message.content)).filter(Boolean); }
-  function topic(messages, intent) { return text(intent?.raw) || users(messages).slice(-1)[0] || ''; }
+  function topic(messages, intent) {
+    const task = (Array.isArray(messages) ? messages : [])
+      .find((message) => message?.role === 'user' && !message?.synthetic && text(message.content));
+    return text(task?.content) || text(intent?.raw) || users(messages).slice(-1)[0] || '';
+  }
   function extractAxes(raw) { try { const parsed = JSON.parse(text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')); return [...new Set((Array.isArray(parsed?.axes) ? parsed.axes : []).map(text).filter(Boolean))].slice(0, 8); } catch (_) { return []; } }
   function rethrowRateLimit(error) { if (error?.code === 'RATE_LIMITED' || error?.status === 429) throw error; }
   async function discover(messages, intent) {

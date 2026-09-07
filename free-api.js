@@ -360,11 +360,15 @@
       bodyText = await Promise.race([
         res.text(),
         new Promise((_, reject) => {
-          bodyController.signal.addEventListener('abort', () => {
-            const error = new Error(`Response body timeout after ${RESPONSE_BODY_TIMEOUT_MS}ms`);
-            error.name = 'TimeoutError';
-            reject(error);
-          }, { once: true });
+          bodyController.signal.addEventListener(
+            'abort',
+            () => {
+              const error = new Error(`Response body timeout after ${RESPONSE_BODY_TIMEOUT_MS}ms`);
+              error.name = 'TimeoutError';
+              reject(error);
+            },
+            { once: true }
+          );
         }),
       ]);
       traceLLMPhase('response_body_received', {

@@ -123,10 +123,15 @@
       });
       grillState.model = result.model || grillState.model;
       grillState.discovery = result.discovery || grillState.discovery;
-      grillState.currentAction = result.action || null;
+      grillState.currentAction = result.action || grillState.currentAction || null;
       const log = el('grillChatLog');
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
-      if (result.action?.type === 'ask_user') {
+      if (result.status === 'blocked') {
+        appendGrillMessage(
+          'system',
+          'Requirement discovery is temporarily unavailable. The collected requirements were not treated as complete.'
+        );
+      } else if (result.action?.type === 'ask_user') {
         recordAction(result.action);
         appendGrillMessage('ai', result.action.question);
       } else if (result.action?.type === 'complete') {
@@ -150,11 +155,6 @@
         );
         const apply = el('btn-grill-apply');
         if (apply) apply.disabled = false;
-      } else if (result.status === 'blocked') {
-        appendGrillMessage(
-          'system',
-          'Requirement discovery is temporarily unavailable. The collected requirements were not treated as complete.'
-        );
       }
     } catch (error) {
       const log = el('grillChatLog');

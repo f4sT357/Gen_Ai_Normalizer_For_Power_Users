@@ -31,7 +31,13 @@
     if (llm.request.__ganfpuDebugWrapped) return true;
     const original = llm.request;
     const wrapped = async function (messages, temperature) {
-      const call = { timestamp: new Date().toISOString(), temperature, messages: clone(messages), response: null, error: null };
+      const call = {
+        timestamp: new Date().toISOString(),
+        temperature,
+        messages: clone(messages),
+        response: null,
+        error: null,
+      };
       pushLimited(llmCalls, call, 20);
       const callIndex = llmCalls.length - 1;
       const started = performance.now();
@@ -46,7 +52,11 @@
         return result;
       } catch (error) {
         call.elapsed_ms = elapsed(started);
-        call.error = { name: error?.name || 'Error', message: String(error?.message || error), stack: String(error?.stack || '') };
+        call.error = {
+          name: error?.name || 'Error',
+          message: String(error?.message || error),
+          stack: String(error?.stack || ''),
+        };
         throw error;
       } finally {
         activeLLMCall = previous;
@@ -65,7 +75,16 @@
       const started = performance.now();
       const url = typeof input === 'string' ? input : String(input?.url || '');
       const method = String(init?.method || input?.method || 'GET').toUpperCase();
-      const call = { timestamp: new Date().toISOString(), method, url, llm_call_index: activeLLMCall, status: null, ok: null, elapsed_ms: null, error: null };
+      const call = {
+        timestamp: new Date().toISOString(),
+        method,
+        url,
+        llm_call_index: activeLLMCall,
+        status: null,
+        ok: null,
+        elapsed_ms: null,
+        error: null,
+      };
       pushLimited(networkCalls, call);
       try {
         const response = await original(input, init);
@@ -75,7 +94,11 @@
         return response;
       } catch (error) {
         call.elapsed_ms = elapsed(started);
-        call.error = { name: error?.name || 'Error', message: String(error?.message || error), stack: String(error?.stack || '') };
+        call.error = {
+          name: error?.name || 'Error',
+          message: String(error?.message || error),
+          stack: String(error?.stack || ''),
+        };
         throw error;
       }
     };
@@ -91,18 +114,39 @@
     const original = core.step;
     const wrapped = async function (args) {
       const started = performance.now();
-      const before = { model: clone(args?.model), discovery: clone(args?.discovery), currentAction: clone(args?.currentAction), message_count: Array.isArray(args?.messages) ? args.messages.length : 0 };
-      const step = { timestamp: new Date().toISOString(), before, result: null, after: null, elapsed_ms: null, error: null };
+      const before = {
+        model: clone(args?.model),
+        discovery: clone(args?.discovery),
+        currentAction: clone(args?.currentAction),
+        message_count: Array.isArray(args?.messages) ? args.messages.length : 0,
+      };
+      const step = {
+        timestamp: new Date().toISOString(),
+        before,
+        result: null,
+        after: null,
+        elapsed_ms: null,
+        error: null,
+      };
       pushLimited(coreSteps, step);
       try {
         const result = await original(args);
         step.elapsed_ms = elapsed(started);
-        step.result = clone({ status: result?.status, action: result?.action, model: result?.model, discovery: result?.discovery });
+        step.result = clone({
+          status: result?.status,
+          action: result?.action,
+          model: result?.model,
+          discovery: result?.discovery,
+        });
         step.after = clone(window.ganfpuGrillController?.getState?.() || null);
         return result;
       } catch (error) {
         step.elapsed_ms = elapsed(started);
-        step.error = { name: error?.name || 'Error', message: String(error?.message || error), stack: String(error?.stack || '') };
+        step.error = {
+          name: error?.name || 'Error',
+          message: String(error?.message || error),
+          stack: String(error?.stack || ''),
+        };
         step.after = clone(window.ganfpuGrillController?.getState?.() || null);
         throw error;
       }
@@ -121,14 +165,22 @@
       timestamp: new Date().toISOString(),
       app: 'GANFPU',
       page: location.href,
-      provider: provider ? { label: typeof provider.getProviderLabel === 'function' ? provider.getProviderLabel() : '', model: typeof provider.getModel === 'function' ? provider.getModel() : '' } : null,
+      provider: provider
+        ? {
+            label:
+              typeof provider.getProviderLabel === 'function' ? provider.getProviderLabel() : '',
+            model: typeof provider.getModel === 'function' ? provider.getModel() : '',
+          }
+        : null,
       llm_calls: clone(llmCalls),
       llm_phases: clone(window.ganfpuLLMTrace || []),
       network_calls: clone(networkCalls),
       core_steps: clone(coreSteps),
       discovery_trace: clone(window.ganfpuRequirementDiscovery?.runtimeTrace || null),
       controller_state: clone(window.ganfpuGrillController?.getState?.() || null),
-      visible_chat: Array.from(document.querySelectorAll('#grillChatLog > *')).map((node) => String(node.textContent || '').trim()).filter(Boolean),
+      visible_chat: Array.from(document.querySelectorAll('#grillChatLog > *'))
+        .map((node) => String(node.textContent || '').trim())
+        .filter(Boolean),
     };
   }
 
@@ -147,7 +199,11 @@
     textarea.focus({ preventScroll: true });
     textarea.setSelectionRange(0, textarea.value.length);
     let copied = false;
-    try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+    try {
+      copied = document.execCommand('copy');
+    } catch (e) {
+      copied = false;
+    }
     document.body.removeChild(textarea);
     return copied;
   }
@@ -172,7 +228,8 @@
   function installButton() {
     const existing = document.getElementById('btn-grill-debug-copy');
     if (existing) {
-      existing.style.cssText = 'position:fixed !important;right:12px !important;bottom:12px !important;z-index:2147483647 !important;display:block !important;visibility:visible !important;opacity:1 !important;pointer-events:auto !important;padding:10px 14px;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:600 13px sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.2);cursor:pointer;';
+      existing.style.cssText =
+        'position:fixed !important;right:12px !important;bottom:12px !important;z-index:2147483647 !important;display:block !important;visibility:visible !important;opacity:1 !important;pointer-events:auto !important;padding:10px 14px;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:600 13px sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.2);cursor:pointer;';
       existing.onclick = copyDebugLog;
       return true;
     }
@@ -182,7 +239,8 @@
     button.textContent = 'Copy Debug Log';
     button.title = 'Copy GANFPU controller diagnostics';
     button.onclick = copyDebugLog;
-    button.style.cssText = 'position:fixed !important;right:12px !important;bottom:12px !important;z-index:2147483647 !important;display:block !important;visibility:visible !important;opacity:1 !important;pointer-events:auto !important;padding:10px 14px;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:600 13px sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.2);cursor:pointer;';
+    button.style.cssText =
+      'position:fixed !important;right:12px !important;bottom:12px !important;z-index:2147483647 !important;display:block !important;visibility:visible !important;opacity:1 !important;pointer-events:auto !important;padding:10px 14px;border:1px solid #888;border-radius:8px;background:#fff;color:#111;font:600 13px sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.2);cursor:pointer;';
     document.body.appendChild(button);
     return true;
   }

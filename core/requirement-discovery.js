@@ -214,23 +214,15 @@
         dimension: text(item?.target?.dimension),
       },
     }));
-    const scratchpad = (Array.isArray(messages) ? messages : [])
-      .filter((message) => message?.role === 'user' || message?.role === 'assistant')
-      .map((message) => ({ role: message.role, content: text(message.content) }))
-      .filter((message) => message.content)
-      .slice(-4);
 
     return {
       language,
       intent: {
         task_type: text(model?.intent?.task_type),
-        domain: text(model?.intent?.domain),
-        confidence: model?.intent?.confidence ?? null,
       },
       requirements,
       asked,
       current_action: currentAction || null,
-      scratchpad,
     };
   }
 
@@ -238,22 +230,12 @@
     const context = buildDiscoveryContext(model, discovery, currentAction, messages, latestUserMessage);
 
     return [
-      'Choose the single highest-value next user question for requirement discovery.',
-      'This component generates an action, not facts, recommendations, or solutions.',
-      'The Requirement Model is the source of truth. Use only the compact state below.',
-      'The discovery log contains questions already asked. Do not repeat them.',
-      'Do not invent user preferences, domain facts, technical specifications, or recommendations.',
-      'Ask only for a requirement that materially affects the user goal.',
-      'Discover only requirements necessary for the current task. Do not fill all ten fields by default.',
-      'Use exactly one fixed field ID: f-role, f-task, f-context, f-constraint, f-format, f-tone, f-length, f-reasoning, f-lang, f-hallucination.',
-      'The target dimension must describe the requirement being asked about.',
-      'Do not ask about a target whose requirement is already confirmed, unknown, or not_required.',
-      'A candidate requirement is not authoritative until explicitly confirmed by the user.',
-      'Generate the question in the requested conversation language.',
-      'Use the scratchpad only for conversational continuity; it is not authoritative state.',
-      'If no materially useful requirement remains, return {"type":"complete"}.',
+      'Choose the next materially useful requirement question from the current state.',
+      'Return only one JSON action. If none remains, return {"type":"complete"}.',
+      'Use the conversation language in the context.',
+      'Valid field IDs: f-role, f-task, f-context, f-constraint, f-format, f-tone, f-length, f-reasoning, f-lang, f-hallucination.',
       '{"type":"ask_user","id":"action_01","question":"...","target":{"field_id":"f-context","dimension":"usage"}}',
-      `DISCOVERY CONTEXT:\n${JSON.stringify(context)}`
+      `STATE:\n${JSON.stringify(context)}`
     ].join('\n');
   }
 
@@ -266,7 +248,7 @@
 
     try {
       const raw = await adapter.request([
-        { role: 'system', content: 'You are a requirement discovery component. Generate only the next user-facing action.' },
+        { role: 'system', content: 'Generate the next requirement-discovery action as JSON.' },
         { role: 'user', content: buildPrompt(model, discovery, currentAction, messages, latestUserMessage) }
       ], 0.1);
 

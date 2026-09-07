@@ -1,6 +1,8 @@
 (() => {
   'use strict';
-  const LOG_VERSION = 6;
+  const LOG_VERSION = 7;
+  const RUNTIME_BRANCH = 'refactor/state-separation';
+  const RUNTIME_REVISION = '7026b10a5f14e07f19ca965f5871d0a09f94aed5';
   let llmCalls = [];
   let networkCalls = [];
   let coreSteps = [];
@@ -158,6 +160,10 @@
     const provider = window.ganfpuLLM;
     return {
       log_version: LOG_VERSION,
+      runtime: {
+        branch: RUNTIME_BRANCH,
+        revision: RUNTIME_REVISION,
+      },
       timestamp: new Date().toISOString(),
       app: 'GANFPU',
       page: location.href,

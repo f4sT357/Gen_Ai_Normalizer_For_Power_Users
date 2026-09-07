@@ -146,7 +146,23 @@
     currentModel = seedResult.model;
 
     const shouldExtract = !seedResult.seeded || hasInitialRequirementCue(latestUserMessage(messages));
-    if (shouldExtract) currentModel = await extractRequirements(messages, currentModel, currentAction, extractor);
+    if (shouldExtract) {
+      try {
+        currentModel = await extractRequirements(messages, currentModel, currentAction, extractor);
+      } catch (error) {
+        return {
+          status: 'blocked',
+          model: currentModel,
+          discovery: currentDiscovery,
+          action: currentAction || null,
+          error: {
+            phase: 'requirement_extraction',
+            name: text(error?.name) || 'Error',
+            message: text(error?.message) || 'Requirement extraction failed.',
+          },
+        };
+      }
+    }
 
     if (taskType === 'knowledge' && knowledgeIsSufficient(currentModel)) {
       currentDiscovery.completed = true;
@@ -159,18 +175,47 @@
     }
 
     if (!discoveryApi?.nextAction) return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };
-    const next = await discoveryApi.nextAction({
-      model: currentModel,
-      discovery: currentDiscovery,
-      currentAction,
-      messages,
-      latestUserMessage: latestUserMessage(messages),
-    });
-    if (!next) return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };
+    let next;
+    try {
+      next = await discoveryApi.nextAction({
+        model: currentModel,
+        discovery: currentDiscovery,
+        currentAction,
+        messages,
+        latestUserMessage: latestUserMessage(messages),
+      });
+    } catch (error) {
+      return {
+        status: 'blocked',
+        model: currentModel,
+        discovery: currentDiscovery,
+        action: currentAction || null,
+        error: {
+          phase: 'requirement_discovery',
+          name: text(error?.name) || 'Error',
+          message: text(error?.message) || 'Requirement discovery failed.',
+        },
+      };
+    }
+    if (!next) return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: currentAction || null };
     if (next.type === 'complete') {
-      currentModel = await discoverKnowledgeIfNeeded(messages, currentModel, taskType, knowledgeApi);
+      try {
+        currentModel = await discoverKnowledgeIfNeeded(messages, currentModel, taskType, knowledgeApi);
+      } catch (error) {
+        return {
+          status: 'blocked',
+          model: currentModel,
+          discovery: currentDiscovery,
+          action: currentAction || null,
+          error: {
+            phase: 'knowledge_discovery',
+            name: text(error?.name) || 'Error',
+            message: text(error?.message) || 'Knowledge discovery failed.',
+          },
+        };
+      }
       if (taskType === 'knowledge' && !knowledgeIsSufficient(currentModel)) {
-        return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: null };
+        return { status: 'blocked', model: currentModel, discovery: currentDiscovery, action: currentAction || null };
       }
       currentDiscovery.completed = true;
       return { status: 'ok', model: currentModel, discovery: currentDiscovery, action: completionAction(currentModel) };

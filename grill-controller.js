@@ -29,8 +29,7 @@
   function providerLabel() {
     const provider = window.ganfpuLLM;
     if (!provider) return '';
-    const label =
-      typeof provider.getProviderLabel === 'function' ? provider.getProviderLabel() : '';
+    const label = typeof provider.getProviderLabel === 'function' ? provider.getProviderLabel() : '';
     const model = typeof provider.getModel === 'function' ? provider.getModel() : '';
     return [label, model].filter(Boolean).join(' · ');
   }
@@ -53,21 +52,15 @@
   function recordAction(action) {
     if (!action || action.type !== 'ask_user') return;
     if (!Array.isArray(grillState.discovery.asked)) grillState.discovery.asked = [];
-    const id =
-      text(action.id) || `action_${String(grillState.discovery.asked.length + 1).padStart(2, '0')}`;
+    const id = text(action.id) || `action_${String(grillState.discovery.asked.length + 1).padStart(2, '0')}`;
     if (!grillState.discovery.asked.some((item) => text(item.id) === id)) {
-      grillState.discovery.asked.push({
-        id,
-        question: text(action.question),
-        target: action.target ? { ...action.target } : null,
-      });
+      grillState.discovery.asked.push({ id, question: text(action.question), target: action.target ? { ...action.target } : null });
     }
   }
 
   function ensurePromptCompiler() {
     if (window.ganfpuPromptCompiler?.compile) return Promise.resolve(window.ganfpuPromptCompiler);
     if (compilerPromise) return compilerPromise;
-
     compilerPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = 'core/prompt-compiler.js';
@@ -83,12 +76,9 @@
   }
 
   function compileGeneratedPrompt() {
-    const requirements = Array.isArray(grillState.model?.requirements)
-      ? grillState.model.requirements
-      : [];
+    const requirements = Array.isArray(grillState.model?.requirements) ? grillState.model.requirements : [];
     const specification = {};
     const prefixes = {};
-
     requirements.forEach((requirement) => {
       if (text(requirement?.status) !== 'confirmed') return;
       const fieldId = text(requirement?.field_id);
@@ -96,14 +86,12 @@
       if (!fieldId || !value) return;
       specification[fieldId.replace(/^f-/, '')] = value;
     });
-
     const translate = typeof window.t === 'function' ? window.t : null;
     if (translate && Array.isArray(window.ganfpuPromptCompiler?.fieldOrder)) {
       window.ganfpuPromptCompiler.fieldOrder.forEach(([, prefixKey]) => {
         prefixes[prefixKey] = translate(prefixKey);
       });
     }
-
     return window.ganfpuPromptCompiler.compile(specification, prefixes);
   }
 
@@ -127,10 +115,17 @@
       const log = el('grillChatLog');
       if (log?.lastChild?.textContent === 'Thinking...') log.removeChild(log.lastChild);
       if (result.status === 'blocked') {
-        appendGrillMessage(
-          'system',
-          'Requirement discovery is temporarily unavailable. The collected requirements were not treated as complete.'
-        );
+        const phase = text(result.error?.phase);
+        const message = text(result.error?.message);
+        if (phase === 'knowledge_discovery') {
+          appendGrillMessage('system', message || 'Knowledge discovery is temporarily unavailable. The collected requirements were not treated as complete.');
+        } else if (phase === 'requirement_extraction') {
+          appendGrillMessage('system', message || 'Requirement extraction is temporarily unavailable. The collected requirements were not treated as complete.');
+        } else if (phase === 'requirement_discovery') {
+          appendGrillMessage('system', message || 'Requirement discovery is temporarily unavailable. The collected requirements were not treated as complete.');
+        } else {
+          appendGrillMessage('system', message || 'GANFPU could not complete the current step. The collected requirements were not treated as complete.');
+        }
       } else if (result.action?.type === 'ask_user') {
         recordAction(result.action);
         appendGrillMessage('ai', result.action.question);
@@ -149,10 +144,7 @@
         } catch (error) {
           console.warn('[GANFPU] Prompt compilation failed:', error);
         }
-        appendGrillMessage(
-          'system',
-          'No further user-grounded requirement needs clarification. You can apply the collected requirements.'
-        );
+        appendGrillMessage('system', 'No further user-grounded requirement needs clarification. You can apply the collected requirements.');
         const apply = el('btn-grill-apply');
         if (apply) apply.disabled = false;
       }
@@ -170,11 +162,7 @@
     const input = el('grillInput');
     const value = text(input?.value);
     if (!value || input?.disabled || grillState.interviewComplete) return;
-    grillState.messages.push({
-      role: 'user',
-      content: value,
-      id: `msg_${String(userMessages().length + 1).padStart(2, '0')}`,
-    });
+    grillState.messages.push({ role: 'user', content: value, id: `msg_${String(userMessages().length + 1).padStart(2, '0')}` });
     appendGrillMessage('user', value);
     if (input) input.value = '';
     await respond();
@@ -186,16 +174,10 @@
     if (!providerReady()) return;
     grillState = createState();
     grillState.messages.push({ role: 'user', content: resolvedIntent, id: 'msg_01' });
-    const modal = el('grillModal'),
-      log = el('grillChatLog'),
-      inputArea = el('grillInput'),
-      applyButton = el('btn-grill-apply');
+    const modal = el('grillModal'), log = el('grillChatLog'), inputArea = el('grillInput'), applyButton = el('btn-grill-apply');
     if (modal) modal.style.display = 'flex';
     if (log) log.innerHTML = '';
-    if (inputArea) {
-      inputArea.value = '';
-      inputArea.disabled = false;
-    }
+    if (inputArea) { inputArea.value = ''; inputArea.disabled = false; }
     if (applyButton) applyButton.disabled = true;
     appendGrillMessage('system', providerLabel());
     await respond();
@@ -208,15 +190,8 @@
   }
 
   async function apply() {
-    const requirements = Array.isArray(grillState.model?.requirements)
-      ? grillState.model.requirements
-      : [];
-    const confirmed = requirements.filter(
-      (requirement) =>
-        text(requirement?.status) === 'confirmed' &&
-        text(requirement?.field_id) &&
-        text(requirement?.value)
-    );
+    const requirements = Array.isArray(grillState.model?.requirements) ? grillState.model.requirements : [];
+    const confirmed = requirements.filter((requirement) => text(requirement?.status) === 'confirmed' && text(requirement?.field_id) && text(requirement?.value));
     for (const requirement of confirmed) {
       const field = el(text(requirement.field_id));
       if (!field) continue;
@@ -227,18 +202,14 @@
         else if (field.id === 'f-format' || field.id === 'f-hallucination') {
           field.value = 'custom';
           const custom = el(`${field.id}-custom`);
-          if (custom) {
-            custom.value = value.replace(/^カスタム:\s*/i, '');
-            custom.style.display = 'block';
-          }
+          if (custom) { custom.value = value.replace(/^カスタム:\s*/i, ''); custom.style.display = 'block'; }
         }
       } else field.value = value;
     }
     if (typeof window.update === 'function') window.update();
     if (typeof window.recordHistory === 'function') window.recordHistory('grill');
     closeGrillMe();
-    if (typeof window.showToast === 'function')
-      window.showToast('Prompt Specification updated from Requirement Model.');
+    if (typeof window.showToast === 'function') window.showToast('Prompt Specification updated from Requirement Model.');
   }
 
   function bind() {
@@ -247,28 +218,21 @@
     const closeButton = el('btn-grill-close');
     const modalCloseButton = document.querySelector('#grillModal .modal-close-btn');
     if (!sendButton || !applyButton) return false;
-
     const freshSend = sendButton.cloneNode(true);
     sendButton.replaceWith(freshSend);
     freshSend.onclick = send;
-
     const input = el('grillInput');
     if (input) {
       const freshInput = input.cloneNode(true);
       input.replaceWith(freshInput);
       freshInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-          event.preventDefault();
-          send();
-        }
+        if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); }
       });
     }
-
     const freshApply = applyButton.cloneNode(true);
     applyButton.replaceWith(freshApply);
     freshApply.onclick = apply;
     freshApply.disabled = true;
-
     if (closeButton) {
       const freshClose = closeButton.cloneNode(true);
       closeButton.replaceWith(freshClose);
@@ -279,17 +243,11 @@
       modalCloseButton.replaceWith(freshModalClose);
       freshModalClose.onclick = closeGrillMe;
     }
-
     return true;
   }
 
   window.ganfpuStartGrill = start;
   window.ganfpuApplyGrillResult = apply;
-  window.ganfpuGrillController = Object.freeze({
-    getState: () => JSON.parse(JSON.stringify(grillState)),
-    start,
-    send,
-    apply,
-  });
+  window.ganfpuGrillController = Object.freeze({ getState: () => JSON.parse(JSON.stringify(grillState)), start, send, apply });
   bind();
 })();

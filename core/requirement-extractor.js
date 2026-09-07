@@ -14,13 +14,15 @@
   }
   function buildDeltaPrompt(userMessage, currentAction) {
     const target = currentAction?.target || {};
-    return ['Extract the requirement expressed by the latest USER MESSAGE for the CURRENT TARGET.','Use the target only to interpret what the answer refers to. Do not add information not stated by the user.','Return [] if the message does not answer the target.','Use status "unknown" when the user explicitly does not know, cannot decide, or does not understand the target.','Use status "not_required" when the user explicitly says the target is unnecessary.','Otherwise use status "confirmed".','Return one JSON object or [].','CURRENT TARGET:',`field_id: ${text(target.field_id)}`,`dimension: ${text(target.dimension)}`,`question: ${text(currentAction?.question)}`,`LATEST USER MESSAGE:\n${JSON.stringify(userMessage || null)}`,'Output ONLY valid JSON.'].join('\n');
+    return ['Extract the requirement expressed by the latest USER MESSAGE for the CURRENT TARGET.','Use the target only to interpret what the answer refers to. Do not add information not stated by the user.','Return [] if the message does not answer the target.','Use status "unknown" when the user explicitly does not know, cannot decide, or does not understand the target.','Use status "not_required" when the user explicitly says the target is unnecessary.','Otherwise use status "confirmed".','Return one JSON object or [].','Return only these fields: dimension_anchor, value, status.','CURRENT TARGET:',`field_id: ${text(target.field_id)}`,`dimension: ${text(target.dimension)}`,`question: ${text(currentAction?.question)}`,`LATEST USER MESSAGE:\n${JSON.stringify(userMessage || null)}`,'Output ONLY valid JSON.'].join('\n');
   }
   function parseJson(raw) {
     const value = text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     try { return JSON.parse(value); } catch (_) {
       const start = value.indexOf('['), end = value.lastIndexOf(']');
       if (start >= 0 && end > start) { try { return JSON.parse(value.slice(start, end + 1)); } catch (_) { return null; } }
+      const objectStart = value.indexOf('{'), objectEnd = value.lastIndexOf('}');
+      if (objectStart >= 0 && objectEnd > objectStart) { try { return JSON.parse(value.slice(objectStart, objectEnd + 1)); } catch (_) { return null; } }
       return null;
     }
   }
@@ -42,15 +44,24 @@
   async function extractDelta({ userMessage, currentAction = null, model = {} } = {}) {
     const api = modelApi(); if (!api) throw new Error('Requirement Model is unavailable.');
     const message = typeof userMessage === 'string' ? { id: 'latest', content: text(userMessage) } : { id: text(userMessage?.id) || 'latest', content: text(userMessage?.content) };
-    if (!message.content || !currentAction?.target) return [];
+    const target = currentAction?.target || {};
+    if (!message.content || !text(target.field_id) || !text(target.dimension)) return [];
     const adapter = llm(); if (!adapter?.request) return [];
     let raw;
     try { raw = await adapter.request([{ role: 'system', content: 'Extract the user requirement for the current target. Output JSON only.' }, { role: 'user', content: buildDeltaPrompt(message, currentAction) }], 0.1); } catch (error) { throw error; }
     const parsed = parseJson(raw); if (parsed == null) return [];
-    const candidates = Array.isArray(parsed) ? parsed : (parsed?.requirements && Array.isArray(parsed.requirements) ? parsed.requirements : (parsed && typeof parsed === 'object' && parsed.field_id ? [parsed] : []));
+    const candidates = Array.isArray(parsed) ? parsed : (parsed?.requirements && Array.isArray(parsed.requirements) ? parsed.requirements : (parsed && typeof parsed === 'object' ? [parsed] : []));
     const accepted = [];
     for (const candidate of candidates.slice(0, 1)) {
-      const normalized = { ...candidate, source: candidate.status === 'candidate' ? (candidate.source && typeof candidate.source === 'object' ? { ...candidate.source } : null) : { type: 'user', message_id: message.id, quote: text(candidate.source?.quote) || message.content } };
+      const status = text(candidate?.status).toLowerCase();
+      const normalized = {
+        field_id: text(target.field_id),
+        dimension: text(target.dimension),
+        dimension_anchor: text(candidate?.dimension_anchor),
+        value: status === 'unknown' || status === 'not_required' ? '' : text(candidate?.value),
+        status,
+        source: status === 'candidate' ? (candidate.source && typeof candidate.source === 'object' ? { ...candidate.source } : null) : { type: 'user', message_id: message.id, quote: message.content },
+      };
       const valid = validateCandidate(normalized, [message]);
       if (!valid.valid) continue;
       if (api.findRequirementByIdentity(model, normalized)) continue;

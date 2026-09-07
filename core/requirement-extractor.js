@@ -14,7 +14,7 @@
   }
   function buildDeltaPrompt(userMessage, currentAction) {
     const target = currentAction?.target || {};
-    return ['Extract the requirement expressed by the latest USER MESSAGE for the CURRENT TARGET.','Use the target only to interpret what the answer refers to. Do not add information not stated by the user.','Return [] if the message does not answer the target.','Use status "unknown" when the user explicitly does not know, cannot decide, or does not understand the target.','Use status "not_required" when the user explicitly says the target is unnecessary.','Otherwise use status "confirmed".','Return one JSON object or [].','Return only these fields: dimension_anchor, value, status.','CURRENT TARGET:',`field_id: ${text(target.field_id)}`,`dimension: ${text(target.dimension)}`,`question: ${text(currentAction?.question)}`,`LATEST USER MESSAGE:\n${JSON.stringify(userMessage || null)}`,'Output ONLY valid JSON.'].join('\n');
+    return ['Extract the requirement expressed by the latest USER MESSAGE for the CURRENT TARGET.','Use the target only to interpret what the answer refers to. Do not add information not stated by the user.','Return [] if the message does not answer the target.','Use status "unknown" when the user explicitly does not know, cannot decide, or does not understand the target.','Use status "not_required" when the user explicitly says the target is unnecessary.','Otherwise use status "confirmed".','Return one JSON object or [].','Return only these fields: value, status.','CURRENT TARGET:',`field_id: ${text(target.field_id)}`,`dimension: ${text(target.dimension)}`,`question: ${text(currentAction?.question)}`,`LATEST USER MESSAGE:\n${JSON.stringify(userMessage || null)}`,'Output ONLY valid JSON.'].join('\n');
   }
   function parseJson(raw) {
     const value = text(raw).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
@@ -26,7 +26,7 @@
       return null;
     }
   }
-  function validateSourceAgainstUsers(requirement, users) { const source = requirement?.source; if (!source || source.type !== 'user' || !text(source.quote)) return false; const quote = text(source.quote); const message = users.find((item) => text(item.id) === text(source.message_id)); if (!message || !message.content.includes(quote)) return false; const anchor = text(requirement.dimension_anchor || quote); if (!anchor || !quote.includes(anchor)) return false; if (requirement.status === 'confirmed' && !text(requirement.value)) return false; if ((requirement.status === 'unknown' || requirement.status === 'not_required') && text(requirement.value)) return false; return true; }
+  function validateSourceAgainstUsers(requirement, users) { const source = requirement?.source; if (!source || source.type !== 'user' || !text(source.quote)) return false; const quote = text(source.quote); const message = users.find((item) => text(item.id) === text(source.message_id)); if (!message || message.content.includes(quote) === false) return false; const anchor = text(requirement.dimension_anchor || quote); if (!anchor || !quote.includes(anchor)) return false; if (requirement.status === 'confirmed' && !text(requirement.value)) return false; if ((requirement.status === 'unknown' || requirement.status === 'not_required') && text(requirement.value)) return false; return true; }
   function validateCandidate(requirement, users) { const api = modelApi(); if (!api) return { valid: false, reason: 'requirement_model_unavailable' }; const normalized = { ...requirement, field_id: text(requirement?.field_id), dimension: text(requirement?.dimension), dimension_anchor: text(requirement?.dimension_anchor), value: text(requirement?.value), status: text(requirement?.status) }; const validation = api.validateRequirement(normalized); if (!validation.valid) return validation; if (normalized.status !== 'candidate' && !validateSourceAgainstUsers(normalized, users)) return { valid: false, reason: 'source_not_user_grounded' }; return { valid: true }; }
   async function extract(messages, model = {}) {
     const api = modelApi(); if (!api) throw new Error('Requirement Model is unavailable.');
@@ -57,10 +57,10 @@
       const normalized = {
         field_id: text(target.field_id),
         dimension: text(target.dimension),
-        dimension_anchor: text(candidate?.dimension_anchor),
+        dimension_anchor: message.content,
         value: status === 'unknown' || status === 'not_required' ? '' : text(candidate?.value),
         status,
-        source: status === 'candidate' ? (candidate.source && typeof candidate.source === 'object' ? { ...candidate.source } : null) : { type: 'user', message_id: message.id, quote: message.content },
+        source: { type: 'user', message_id: message.id, quote: message.content },
       };
       const valid = validateCandidate(normalized, [message]);
       if (!valid.valid) continue;

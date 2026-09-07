@@ -3,6 +3,10 @@
 
   const modelApi = () => window.ganfpuRequirementModel;
   const llm = () => window.ganfpuLLMAdapter || window.ganfpuLLM;
+  const runtimeTrace = {
+    version: '20260907-state-separation-1',
+    calls: [],
+  };
 
   function text(value) {
     return String(value == null ? '' : value).replace(/\s+/g, ' ').trim();
@@ -111,17 +115,38 @@
 
   function fallbackAction(model, discovery, messages, latestUserMessage) {
     const language = conversationLanguage(messages, latestUserMessage);
-    for (const candidate of fallbackCandidates(model, language)) {
+    const candidates = fallbackCandidates(model, language);
+    const attempt = {
+      timestamp: new Date().toISOString(),
+      task_type: text(model?.intent?.task_type),
+      language,
+      candidate_count: candidates.length,
+      validations: [],
+      selected: null,
+    };
+    for (const candidate of candidates) {
       const validation = validateAction({ type: 'ask_user', ...candidate }, model, discovery);
+      attempt.validations.push({
+        field_id: candidate.field_id,
+        dimension: candidate.dimension,
+        valid: validation.valid,
+        reason: validation.reason || '',
+      });
       if (validation.valid) {
-        return {
+        const selected = {
           type: 'ask_user',
           id: nextActionId(discovery),
           question: candidate.question,
           target: { field_id: candidate.field_id, dimension: candidate.dimension },
         };
+        attempt.selected = selected;
+        runtimeTrace.calls.push(attempt);
+        if (runtimeTrace.calls.length > 20) runtimeTrace.calls.shift();
+        return selected;
       }
     }
+    runtimeTrace.calls.push(attempt);
+    if (runtimeTrace.calls.length > 20) runtimeTrace.calls.shift();
     return null;
   }
 
@@ -207,8 +232,6 @@
   }
 
   async function nextAction({ model = {}, discovery = {}, currentAction = null, messages = [], latestUserMessage = null } = {}) {
-    // Prefer deterministic, conservative questions when they cover a known common requirement.
-    // This avoids spending an LLM call merely to select a generic first/second question.
     const deterministic = fallbackAction(model, discovery, messages, latestUserMessage);
     if (deterministic) return deterministic;
 
@@ -217,18 +240,11 @@
 
     try {
       const raw = await adapter.request([
-        {
-          role: 'system',
-          content: 'You are a requirement discovery component. Generate only the next user-facing action.'
-        },
-        {
-          role: 'user',
-          content: buildPrompt(model, discovery, currentAction, messages, latestUserMessage)
-        }
+        { role: 'system', content: 'You are a requirement discovery component. Generate only the next user-facing action.' },
+        { role: 'user', content: buildPrompt(model, discovery, currentAction, messages, latestUserMessage) }
       ], 0.1);
 
       const action = parseAction(raw);
-
       if (action?.type === 'complete') return action;
 
       const validation = validateAction(action, model, discovery);
@@ -237,10 +253,7 @@
           type: 'ask_user',
           id: text(action.id) || nextActionId(discovery),
           question: text(action.question),
-          target: {
-            field_id: text(action.target.field_id),
-            dimension: text(action.target.dimension)
-          }
+          target: { field_id: text(action.target.field_id), dimension: text(action.target.dimension) }
         };
       }
 
@@ -254,6 +267,7 @@
     nextAction,
     validateAction,
     targetStatus,
-    isDuplicateQuestion
+    isDuplicateQuestion,
+    runtimeTrace,
   });
 })();

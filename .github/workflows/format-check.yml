@@ -48,4 +48,6 @@ jobs:
       - name: Check formatting
         run: npx --yes prettier@3 --check "*.js" "*.css" "*.html"
       - name: Run regression tests
-        run: node tests/requirement-discovery.test.js
+        run: |
+          node tests/requirement-discovery.test.js
+          node tests/normal-mode.test.js

@@ -233,7 +233,8 @@
     const c = copy();
     if (window.ganfpuLLM && typeof window.ganfpuLLM.getProviderLabel === 'function') {
       const provider = window.ganfpuLLM.getProviderLabel();
-      const model = typeof window.ganfpuLLM.getModel === 'function' ? window.ganfpuLLM.getModel() : '';
+      const model =
+        typeof window.ganfpuLLM.getModel === 'function' ? window.ganfpuLLM.getModel() : '';
       const ready = !!model;
       element.textContent = ready ? `${provider} · ${model}` : `${provider} · ${c.noModel}`;
       element.classList.toggle('ready', ready);

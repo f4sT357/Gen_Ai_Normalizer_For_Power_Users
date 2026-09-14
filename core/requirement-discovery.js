@@ -240,35 +240,34 @@
   }
 
   async function nextAction({ model = {}, discovery = {}, currentAction = null, messages = [], latestUserMessage = null } = {}) {
-    const deterministic = fallbackAction(model, discovery, messages, latestUserMessage);
-    if (deterministic) return deterministic;
-
     const adapter = llm();
-    if (!adapter?.request) return null;
+    if (adapter?.request) {
+      try {
+        const raw = await adapter.request([
+          { role: 'system', content: 'Generate the next requirement-discovery action as JSON.' },
+          { role: 'user', content: buildPrompt(model, discovery, currentAction, messages, latestUserMessage) }
+        ], 0.1);
 
-    try {
-      const raw = await adapter.request([
-        { role: 'system', content: 'Generate the next requirement-discovery action as JSON.' },
-        { role: 'user', content: buildPrompt(model, discovery, currentAction, messages, latestUserMessage) }
-      ], 0.1);
+        const action = parseAction(raw);
+        if (action?.type === 'complete') return action;
 
-      const action = parseAction(raw);
-      if (action?.type === 'complete') return action;
-
-      const validation = validateAction(action, model, discovery);
-      if (validation.valid) {
-        return {
-          type: 'ask_user',
-          id: text(action.id) || nextActionId(discovery),
-          question: text(action.question),
-          target: { field_id: text(action.target.field_id), dimension: text(action.target.dimension) }
-        };
-      }
-
-      return null;
-    } catch (_) {
-      return null;
+        const validation = validateAction(action, model, discovery);
+        if (validation.valid) {
+          return {
+            type: 'ask_user',
+            id: text(action.id) || nextActionId(discovery),
+            question: text(action.question),
+            target: { field_id: text(action.target.field_id), dimension: text(action.target.dimension) }
+          };
+        }
+      } catch (_) {}
     }
+
+    // The deterministic path is recovery only: the LLM gets first choice so
+    // normal discovery can ask only for requirements that are materially useful
+    // for the current intent. It is intentionally used after LLM failure,
+    // malformed output, or an invalid action, not as a pre-LLM shortcut.
+    return fallbackAction(model, discovery, messages, latestUserMessage);
   }
 
   window.ganfpuRequirementDiscovery = Object.freeze({

@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '*.js'
+      - 'tests/**/*.js'
       - '*.css'
       - '*.html'
       - '.prettierrc'
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - '*.js'
+      - 'tests/**/*.js'
       - '*.css'
       - '*.html'
       - '.prettierrc'
@@ -45,3 +47,5 @@ jobs:
           git push
       - name: Check formatting
         run: npx --yes prettier@3 --check "*.js" "*.css" "*.html"
+      - name: Run regression tests
+        run: node tests/requirement-discovery.test.js

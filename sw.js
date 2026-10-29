@@ -1,4 +1,21 @@
-const CACHE_NAME = 'ganfpu-v2';
+// Offline assets for the six supported languages.
+// Keep template file names in sync with data/templates.json.
+const CACHE_NAME = 'ganfpu-v3';
+const TEMPLATE_FILES = [
+  "web-research.md",
+  "business-email.md",
+  "minutes.md",
+  "decision-making.md",
+  "blog-post.md",
+  "rewrite.md",
+  "sns-post.md",
+  "translation.md",
+  "explanation.md",
+  "brainstorming.md",
+  "analysis.md",
+  "faq.md"
+];
+const TEMPLATE_LANGUAGES = ["ja","en","zh","ko","es","fr"];
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -10,65 +27,72 @@ const ASSETS_TO_CACHE = [
   './assets/icons/icon-512.png',
   './data/i18n.json',
   './data/templates.json',
-  './data/templates/web-research.md',
-  './data/templates/business-email.md',
-  './data/templates/minutes.md',
-  './data/templates/decision-making.md',
-  './data/templates/blog-post.md',
-  './data/templates/rewrite.md',
-  './data/templates/sns-post.md',
-  './data/templates/translation.md',
-  './data/templates/explanation.md',
-  './data/templates/brainstorming.md',
-  './data/templates/analysis.md',
-  './data/templates/faq.md',
+  ...TEMPLATE_LANGUAGES.flatMap(lang =>
+    TEMPLATE_FILES.map(file => `./data/templates/${lang}/${file}`)
+  ),
 ];
+const cacheablePaths = new Set(
+  ASSETS_TO_CACHE.map(path => new URL(path, self.registration.scope).pathname)
+);
 
-// Install: Pre-cache all assets
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      console.log('[SW] Pre-caching assets');
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS_TO_CACHE))
   );
   self.skipWaiting();
 });
 
-// Activate: Clean up old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      )
-    )
+    caches.keys().then(keys => Promise.all(
+      keys
+        // Cache Storage is shared by all apps on this origin.
+        .filter(key => key.startsWith('ganfpu-') && key !== CACHE_NAME)
+        .map(key => caches.delete(key))
+    ))
   );
   self.clients.claim();
 });
 
-// Fetch: Cache-first strategy
 self.addEventListener('fetch', event => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      // If not in cache, fetch from network and cache the response
-      return fetch(event.request).then(response => {
-        if (!response || response.status !== 200 || response.type === 'opaque') {
-          return response;
+  const requestUrl = new URL(event.request.url);
+  const scopeUrl = new URL(self.registration.scope);
+
+  // Do not intercept CDN, font, or unrelated GitHub Pages requests.
+  if (requestUrl.origin !== scopeUrl.origin ||
+      !requestUrl.pathname.startsWith(scopeUrl.pathname)) return;
+
+  // Navigation is network-first to avoid serving a stale security patch.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response.ok && cacheablePaths.has(requestUrl.pathname) && !requestUrl.search) {
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)));
         }
-        const cloned = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, cloned));
         return response;
-      });
-    }).catch(() => {
-      // Fallback for navigation requests if offline
-      if (event.request.mode === 'navigate') {
-        return caches.match('./index.html');
-      }
-    })
+      }).catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return (await cache.match(event.request)) || cache.match('./index.html');
+      })
+    );
+    return;
+  }
+
+  // Only cache known application files. Never cache arbitrary same-origin GETs.
+  if (!cacheablePaths.has(requestUrl.pathname) || requestUrl.search) return;
+
+  event.respondWith(
+    caches.open(CACHE_NAME).then(cache =>
+      cache.match(event.request).then(cached => cached || fetch(event.request).then(response => {
+        if (response.ok && response.type !== 'opaque') {
+          const copy = response.clone();
+          event.waitUntil(cache.put(event.request, copy));
+        }
+        return response;
+      }))
+    )
   );
 });

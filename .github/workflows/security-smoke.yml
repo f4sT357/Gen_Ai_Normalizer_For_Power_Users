@@ -1,0 +1,26 @@
+name: Security smoke tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'security/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  security-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run security regression tests
+        run: node --test tests/security.test.cjs
+      - name: Verify pinned browser bundle is published
+        run: curl --fail --location --silent --show-error --max-time 20 --output /dev/null "https://cdn.jsdelivr.net/npm/js-yaml@4.3.2/dist/js-yaml.min.js"

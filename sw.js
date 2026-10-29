@@ -73,9 +73,10 @@ self.addEventListener('fetch', event => {
           event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)));
         }
         return response;
-      }).catch(async () =>
-        (await caches.match(event.request)) || (await caches.match('./index.html'))
-      )
+      }).catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return (await cache.match(event.request)) || cache.match('./index.html');
+      })
     );
     return;
   }
@@ -84,12 +85,14 @@ self.addEventListener('fetch', event => {
   if (!cacheablePaths.has(requestUrl.pathname) || requestUrl.search) return;
 
   event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
-      if (response.ok && response.type !== 'opaque') {
-        const copy = response.clone();
-        event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)));
-      }
-      return response;
-    }))
+    caches.open(CACHE_NAME).then(cache =>
+      cache.match(event.request).then(cached => cached || fetch(event.request).then(response => {
+        if (response.ok && response.type !== 'opaque') {
+          const copy = response.clone();
+          event.waitUntil(cache.put(event.request, copy));
+        }
+        return response;
+      }))
+    )
   );
 });
